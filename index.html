@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)" />
+    <title>Remandio</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
+    <link rel="stylesheet" href="./src/styles.css?v=12" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Navigazione">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">R</div>
+          <div>
+            <h1>Remandio</h1>
+            <p>La tua collezione.</p>
+          </div>
+          <button type="button" id="menuToggle" class="menu-button" aria-expanded="false" aria-label="Apri menu">Menu</button>
+        </div>
+
+        <nav class="side-nav" aria-label="Viste">
+          <button type="button" class="side-link active" data-view="library">Libreria</button>
+          <button type="button" class="side-link" data-view="category">Categoria</button>
+          <button type="button" class="side-link" data-view="editor">Editor</button>
+        </nav>
+
+        <div class="collections-panel">
+          <div class="nav-heading">
+            <span>Collezioni</span>
+            <button type="button" id="quickAddCategory" class="mini-button" aria-label="Nuova categoria">+</button>
+          </div>
+          <nav class="category-nav" id="categoryNav"></nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <button type="button" id="themeToggle" class="side-link">Tema</button>
+          <button type="button" id="exportButton" class="side-link">Esporta libreria</button>
+          <label class="side-link file-trigger" for="importFile">Importa e unisci JSON</label>
+          <input id="importFile" type="file" accept="application/json,.json" />
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="hero-bar">
+          <label class="global-search">
+            <span aria-hidden="true">⌕</span>
+            <input id="searchInput" type="search" placeholder="Cerca film, serie, libri, album, luoghi..." />
+          </label>
+          <div class="hero-actions">
+            <button type="button" id="newItemButton" class="primary-button">Aggiungi</button>
+          </div>
+        </header>
+
+        <section id="libraryView" class="view">
+          <section class="library-section">
+            <div class="section-heading library-heading">
+              <div>
+                <h2>La tua libreria</h2>
+                <p>Scegli una categoria o aggiungine una nuova.</p>
+              </div>
+            </div>
+            <div id="libraryGrid" class="library-grid"></div>
+          </section>
+        </section>
+
+        <section id="categoryView" class="view" hidden>
+          <div class="category-header">
+            <div>
+              <p class="eyebrow" id="activeCategoryKind">Categoria</p>
+              <h2 id="activeCategoryTitle">Film</h2>
+              <p id="itemsSummary">0 elementi</p>
+            </div>
+            <div class="category-actions">
+              <button type="button" id="editCategoryButton" class="ghost-button">Modifica campi</button>
+              <button type="button" id="newCategoryItemButton" class="primary-button">Nuova card</button>
+            </div>
+          </div>
+          <div id="duplicateNotice" class="duplicate-notice" hidden></div>
+          <div id="itemList" class="item-list"></div>
+        </section>
+
+        <section id="editorView" class="view editor-view" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Editor</p>
+              <h2>Struttura e card</h2>
+            </div>
+            <button type="button" id="backToLibraryButton" class="ghost-button">Libreria</button>
+          </div>
+
+          <section class="editor-grid">
+            <div class="panel entry-panel" id="entryPanel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Card</p>
+                  <h3 id="entryTitle">Aggiungi elemento</h3>
+                </div>
+                <button type="button" id="clearFormButton" class="ghost-button compact">Pulisci</button>
+              </div>
+              <form id="itemForm" class="stacked-form"></form>
+            </div>
+
+            <div class="panel schema-panel" id="schemaPanel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Personalizza</p>
+                  <h3>Campi categoria</h3>
+                </div>
+              </div>
+              <form class="inline-form" id="categoryForm">
+                <label for="categoryName">Nuova categoria</label>
+                <div class="inline-row">
+                  <input id="categoryName" name="name" type="text" placeholder="Album, libri, live..." required />
+                  <button type="submit" class="icon-button" aria-label="Aggiungi categoria">+</button>
+                </div>
+              </form>
+              <div id="schemaFields" class="schema-fields"></div>
+              <form id="fieldForm" class="stacked-form small-form">
+                <label>
+                  Nome campo
+                  <input name="label" type="text" placeholder="Fotografia, colonna sonora..." required />
+                </label>
+                <label>
+                  Tipo
+                  <select name="type">
+                    <option value="text">Testo</option>
+                    <option value="textarea">Note lunghe</option>
+                    <option value="number">Numero</option>
+                    <option value="rating">Valutazione</option>
+                    <option value="date">Data</option>
+                    <option value="tags">Tag</option>
+                  </select>
+                </label>
+                <div class="range-row">
+                  <label>
+                    Min
+                    <input name="min" type="number" value="0" />
+                  </label>
+                  <label>
+                    Max
+                    <input name="max" type="number" value="10" />
+                  </label>
+                  <label>
+                    Step
+                    <input name="step" type="number" value="0.5" step="0.1" />
+                  </label>
+                </div>
+                <button type="submit" class="primary-button full">Aggiungi campo</button>
+              </form>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <p class="eyebrow">Nessun risultato</p>
+        <h3>Non ci sono card qui.</h3>
+        <p>Aggiungi un elemento oppure importa un JSON Remandio.</p>
+      </div>
+    </template>
+
+    <script type="module" src="./src/app.js?v=11"></script>
+  </body>
+</html>

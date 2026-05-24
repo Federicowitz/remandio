@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Remandio">
+  <rect width="512" height="512" rx="112" fill="#f7f7f5"/>
+  <path d="M112 144c0-27 21-48 48-48h192c27 0 48 21 48 48v245c0 23-25 36-44 24l-80-54a38 38 0 0 0-40 0l-80 54c-19 12-44-1-44-24V144Z" fill="#151719"/>
+  <path d="M191 192h86c44 0 72 27 72 64 0 28-16 50-43 59l48 79h-63l-40-72h-33v72h-58V192h31Zm27 51v35h56c12 0 19-7 19-18s-7-17-19-17h-56Z" fill="#f7f7f5"/>
+</svg>
