@@ -15,13 +15,13 @@ export const starterCategories = [
     kind: "media",
     color: "#8f8a80",
     fields: [
+      ratingField("rating", "Valutazione", 0, 10, 0.5),
+      textareaField("notes", "Note"),
       textField("director", "Regia"),
       numberField("year", "Anno", 1888, 2100, 1),
       dateField("watchedOn", "Visto il"),
-      ratingField("rating", "Valutazione", 0, 10, 0.5),
-      ratingField("visuals", "Immagine", 0, 5, 0.5),
-      tagsField("tags", "Tag"),
-      textareaField("notes", "Note")
+      tagsField("tags", "Tag")
+      
     ]
   },
   {
@@ -30,13 +30,13 @@ export const starterCategories = [
     kind: "media",
     color: "#7f9886",
     fields: [
+      ratingField("rating", "Valutazione", 0, 10, 0.5),
+      textareaField("notes", "Note"),
       textField("showrunner", "Showrunner"),
       numberField("seasons", "Stagioni viste", 0, 99, 1),
       textField("platform", "Piattaforma"),
-      ratingField("rating", "Valutazione", 0, 10, 0.5),
-      ratingField("characters", "Personaggi", 0, 5, 0.5),
       tagsField("tags", "Tag"),
-      textareaField("notes", "Note")
+      
     ]
   }
 ];
@@ -221,7 +221,8 @@ export function normalizeField(field) {
   });
   return {
     ...normalized,
-    id: safeId(field.id || normalized.id)
+    id: safeId(field.id || normalized.id),
+    custom: Boolean(field.custom)
   };
 }
 
@@ -255,9 +256,11 @@ export function averageRating(category, item) {
     .filter((field) => field.type === "rating")
     .map((field) => {
       const raw = Number(item.values[field.id]);
+      const min = Number(field.min || 0);
       const max = Number(field.max || 10);
-      if (!Number.isFinite(raw) || raw <= 0 || !Number.isFinite(max) || max <= 0) return null;
-      return (raw / max) * 10;
+      const range = max - min;
+      if (!Number.isFinite(raw) || !Number.isFinite(min) || !Number.isFinite(max) || range <= 0) return null;
+      return ((raw - min) / range) * 10;
     })
     .filter((score) => score !== null);
 

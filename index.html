@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=12" />
+    <link rel="stylesheet" href="./src/styles.css?v=13" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -17,7 +17,7 @@
           <div class="brand-mark" aria-hidden="true">R</div>
           <div>
             <h1>Remandio</h1>
-            <p>La tua collezione.</p>
+            <p>Le tue categorie.</p>
           </div>
           <button type="button" id="menuToggle" class="menu-button" aria-expanded="false" aria-label="Apri menu">Menu</button>
         </div>
@@ -25,12 +25,11 @@
         <nav class="side-nav" aria-label="Viste">
           <button type="button" class="side-link active" data-view="library">Libreria</button>
           <button type="button" class="side-link" data-view="category">Categoria</button>
-          <button type="button" class="side-link" data-view="editor">Editor</button>
         </nav>
 
         <div class="collections-panel">
           <div class="nav-heading">
-            <span>Collezioni</span>
+            <span>Categorie</span>
             <button type="button" id="quickAddCategory" class="mini-button" aria-label="Nuova categoria">+</button>
           </div>
           <nav class="category-nav" id="categoryNav"></nav>
@@ -60,7 +59,7 @@
             <div class="section-heading library-heading">
               <div>
                 <h2>La tua libreria</h2>
-                <p>Scegli una categoria o aggiungine una nuova.</p>
+                <p>Scegli una categoria dalla libreria.</p>
               </div>
             </div>
             <div id="libraryGrid" class="library-grid"></div>
@@ -75,7 +74,12 @@
               <p id="itemsSummary">0 elementi</p>
             </div>
             <div class="category-actions">
-              <button type="button" id="editCategoryButton" class="ghost-button">Modifica campi</button>
+              <button type="button" id="editCategoryButton" class="icon-button settings-button" aria-label="Modifica campi">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+                  <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 1 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21a2.1 2.1 0 1 1-4.2 0v-.08A1.8 1.8 0 0 0 8.4 19.3a1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 3.8 14.7a1.8 1.8 0 0 0-1.65-1.09H2a2.1 2.1 0 1 1 0-4.2h.08A1.8 1.8 0 0 0 3.7 8.3a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.1 2.1 0 1 1 2.97-2.97l.05.05a1.8 1.8 0 0 0 1.98.36h.1A1.8 1.8 0 0 0 9.5 2.08V2a2.1 2.1 0 1 1 4.2 0v.08a1.8 1.8 0 0 0 1.1 1.64 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 1 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98v.1A1.8 1.8 0 0 0 21.02 9.5H21a2.1 2.1 0 1 1 0 4.2h-.08A1.8 1.8 0 0 0 19.4 15Z"></path>
+                </svg>
+              </button>
               <button type="button" id="newCategoryItemButton" class="primary-button">Nuova card</button>
             </div>
           </div>
@@ -119,6 +123,7 @@
                 </div>
               </form>
               <div id="schemaFields" class="schema-fields"></div>
+              <div id="fieldDetail" class="field-detail" hidden></div>
               <form id="fieldForm" class="stacked-form small-form">
                 <label>
                   Nome campo
@@ -165,6 +170,6 @@
       </div>
     </template>
 
-    <script type="module" src="./src/app.js?v=11"></script>
+    <script type="module" src="./src/app.js?v=12"></script>
   </body>
 </html>

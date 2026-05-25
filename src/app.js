@@ -1,5 +1,5 @@
-import { createCatalog } from "./lib/catalog.js?v=11";
-import { averageRating, displayValue, serializeValue, textKey } from "./lib/schema.js?v=11";
+import { createCatalog } from "./lib/catalog.js?v=12";
+import { averageRating, displayValue, serializeValue, textKey } from "./lib/schema.js?v=12";
 
 const refs = {
   sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
@@ -30,6 +30,7 @@ const refs = {
   clearFormButton: document.querySelector("#clearFormButton"),
   schemaPanel: document.querySelector("#schemaPanel"),
   schemaFields: document.querySelector("#schemaFields"),
+  fieldDetail: document.querySelector("#fieldDetail"),
   fieldForm: document.querySelector("#fieldForm")
 };
 
@@ -38,7 +39,11 @@ const state = {
   vault: null,
   editingId: null,
   formCategoryId: null,
-  editorMode: "item"
+  editorMode: "item",
+  schemaCanCreateCategory: false,
+  editingFieldId: null,
+  draggingFieldId: null,
+  suppressFieldClick: false
 };
 
 boot();
@@ -60,10 +65,6 @@ async function boot() {
 function wireEvents() {
   for (const link of refs.sideLinks) {
     link.addEventListener("click", () => {
-      if (link.dataset.view === "editor") {
-        openSchemaEditor();
-        return;
-      }
       closeMobileMenu();
       setView(link.dataset.view);
     });
@@ -74,7 +75,7 @@ function wireEvents() {
     refs.menuToggle.setAttribute("aria-expanded", String(isOpen));
   });
   refs.backToLibraryButton.addEventListener("click", () => setView("library"));
-  refs.editCategoryButton.addEventListener("click", () => openSchemaEditor());
+  refs.editCategoryButton.addEventListener("click", () => openSchemaEditor({ canCreateCategory: false }));
   refs.searchInput.addEventListener("input", renderCurrentView);
 
   refs.newItemButton.addEventListener("click", () => openNewItem());
@@ -86,10 +87,8 @@ function wireEvents() {
   });
 
   refs.quickAddCategory.addEventListener("click", async () => {
-    const name = prompt("Nome nuova categoria");
-    if (!name?.trim()) return;
-    await state.catalog.addCategory(name);
-    await openSchemaEditor();
+    await openSchemaEditor({ canCreateCategory: true });
+    document.querySelector("#categoryName")?.focus();
   });
 
   refs.categoryForm.addEventListener("submit", async (event) => {
@@ -100,6 +99,7 @@ function wireEvents() {
     state.editingId = null;
     state.formCategoryId = activeCategory().id;
     state.editorMode = "schema";
+    state.editingFieldId = null;
     event.currentTarget.reset();
   });
 
@@ -227,6 +227,7 @@ function renderCategories() {
     button.addEventListener("click", async () => {
       state.editingId = null;
       state.formCategoryId = category.id;
+      state.editingFieldId = null;
       await state.catalog.setActiveCategory(category.id);
       await setView("category");
     });
@@ -242,8 +243,6 @@ function renderLibrary() {
   for (const category of categories) {
     refs.libraryGrid.append(categoryTile(category));
   }
-
-  refs.libraryGrid.append(newCategoryTile());
 }
 
 function renderCategoryHeader() {
@@ -305,32 +304,194 @@ function renderForm() {
 
 function renderSchema() {
   const category = activeCategory();
+  const editingField = category.fields.find((field) => field.id === state.editingFieldId);
+  const detailMode = Boolean(editingField);
+  refs.categoryForm.hidden = detailMode || !state.schemaCanCreateCategory;
+  refs.schemaFields.hidden = detailMode;
+  refs.fieldForm.hidden = detailMode;
+  refs.fieldDetail.hidden = !detailMode;
   refs.schemaFields.replaceChildren();
+  refs.fieldDetail.replaceChildren();
 
-  for (const field of category.fields) {
+  if (detailMode) {
+    renderFieldDetail(category, editingField);
+    return;
+  }
+
+  category.fields.forEach((field, index) => {
     const row = document.createElement("div");
     row.className = "schema-row";
+    row.dataset.fieldId = field.id;
+    row.dataset.index = String(index);
     row.innerHTML = `
       <div>
         <strong>${escapeHtml(field.label)}</strong>
-        <span>${escapeHtml(field.type)}${field.type === "rating" ? ` ${field.min}-${field.max}` : ""}</span>
+        <span>${fieldTypeLabel(field)}${field.type === "rating" ? ` ${formatScore(field.min)}-${formatScore(field.max)}` : ""}</span>
       </div>
+      <span class="drag-handle" aria-hidden="true">=</span>
     `;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "icon-button quiet";
-    remove.setAttribute("aria-label", `Rimuovi ${field.label}`);
-    remove.textContent = "x";
-    remove.addEventListener("click", async () => {
+    row.setAttribute("role", "button");
+    row.tabIndex = 0;
+    row.addEventListener("click", () => {
+      if (state.suppressFieldClick) return;
+      state.editingFieldId = field.id;
+      renderSchema();
+    });
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      state.editingFieldId = field.id;
+      renderSchema();
+    });
+    attachFieldDrag(row, category, field);
+    refs.schemaFields.append(row);
+  });
+}
+
+function renderFieldDetail(category, field) {
+  const canDelete = isCustomField(category, field);
+  const form = document.createElement("form");
+  form.className = "stacked-form small-form";
+  form.innerHTML = `
+    <div class="panel-heading field-detail-heading">
+      <div>
+        <p class="eyebrow">${fieldTypeLabel(field)}</p>
+        <h3>${escapeHtml(field.label)}</h3>
+      </div>
+      <button type="button" class="ghost-button compact" data-action="back">Campi</button>
+    </div>
+    <label>
+      Nome campo
+      <input name="label" type="text" value="${escapeHtml(field.label)}" required />
+    </label>
+    <label>
+      Tipo
+      <input type="text" value="${fieldTypeLabel(field)}" disabled />
+    </label>
+    ${field.type === "rating" ? ratingSettingsMarkup(field) : ""}
+    <button type="submit" class="primary-button full">Salva campo</button>
+    ${canDelete ? '<button type="button" class="ghost-button danger full" data-action="delete">Elimina campo</button>' : ""}
+  `;
+
+  form.querySelector('[data-action="back"]').addEventListener("click", () => {
+    state.editingFieldId = null;
+    renderSchema();
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    try {
+      await state.catalog.updateField(category.id, field.id, data);
+      state.editingFieldId = field.id;
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  const deleteButton = form.querySelector('[data-action="delete"]');
+  deleteButton?.addEventListener("click", async () => {
+    if (deleteButton.dataset.confirm === "true") {
       try {
         await state.catalog.removeField(category.id, field.id);
+        state.editingFieldId = null;
       } catch (error) {
         alert(error.message);
       }
+      return;
+    }
+    deleteButton.dataset.confirm = "true";
+    deleteButton.textContent = "Conferma eliminazione";
+    setTimeout(() => {
+      deleteButton.dataset.confirm = "false";
+      deleteButton.textContent = "Elimina campo";
+    }, 2500);
+  });
+
+  refs.fieldDetail.append(form);
+}
+
+function ratingSettingsMarkup(field) {
+  return `
+    <div class="range-row">
+      <label>
+        Min
+        <input name="min" type="number" value="${escapeHtml(field.min ?? 0)}" step="0.1" />
+      </label>
+      <label>
+        Max
+        <input name="max" type="number" value="${escapeHtml(field.max ?? 10)}" step="0.1" />
+      </label>
+      <label>
+        Step
+        <input name="step" type="number" value="${escapeHtml(field.step ?? 0.5)}" step="0.1" />
+      </label>
+    </div>
+  `;
+}
+
+function attachFieldDrag(row, category, field) {
+  let holdTimer = null;
+  row.draggable = false;
+
+  row.addEventListener("pointerdown", () => {
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      row.draggable = true;
+      row.classList.add("ready-to-drag");
+    }, 220);
+  });
+
+  for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+    row.addEventListener(eventName, () => {
+      clearTimeout(holdTimer);
+      if (!state.draggingFieldId) {
+        row.draggable = false;
+        row.classList.remove("ready-to-drag");
+      }
     });
-    row.append(remove);
-    refs.schemaFields.append(row);
   }
+
+  row.addEventListener("dragstart", (event) => {
+    if (!row.draggable) {
+      event.preventDefault();
+      return;
+    }
+    state.draggingFieldId = field.id;
+    state.suppressFieldClick = true;
+    row.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", field.id);
+  });
+
+  row.addEventListener("dragover", (event) => {
+    if (!state.draggingFieldId || state.draggingFieldId === field.id) return;
+    event.preventDefault();
+    row.classList.add("drop-target");
+  });
+
+  row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+
+  row.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    row.classList.remove("drop-target");
+    const draggedId = event.dataTransfer.getData("text/plain") || state.draggingFieldId;
+    if (!draggedId || draggedId === field.id) return;
+    try {
+      await state.catalog.moveField(category.id, draggedId, Number(row.dataset.index));
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  row.addEventListener("dragend", () => {
+    row.draggable = false;
+    row.classList.remove("ready-to-drag", "dragging");
+    state.draggingFieldId = null;
+    setTimeout(() => {
+      state.suppressFieldClick = false;
+    }, 0);
+  });
 }
 
 function categoryTile(category) {
@@ -344,24 +505,9 @@ function categoryTile(category) {
     <span>${countItems(category.id)} ${countItems(category.id) === 1 ? "elemento" : "elementi"}</span>
   `;
   button.addEventListener("click", async () => {
+    state.editingFieldId = null;
     await state.catalog.setActiveCategory(category.id);
     await setView("category");
-  });
-  return button;
-}
-
-function newCategoryTile() {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "library-tile new-tile";
-  button.innerHTML = `
-    <span class="tile-icon">+</span>
-    <strong>Nuova categoria</strong>
-    <span>Personalizza la tua libreria</span>
-  `;
-  button.addEventListener("click", async () => {
-    await openSchemaEditor();
-    document.querySelector("#categoryName")?.focus();
   });
   return button;
 }
@@ -590,14 +736,18 @@ async function setView(view) {
 
 async function openItemEditor() {
   state.editorMode = "item";
+  state.schemaCanCreateCategory = false;
+  state.editingFieldId = null;
   state.formCategoryId = activeCategory().id;
   await setView("editor");
 }
 
-async function openSchemaEditor() {
+async function openSchemaEditor({ canCreateCategory = false } = {}) {
   state.editingId = null;
   state.formCategoryId = activeCategory().id;
   state.editorMode = "schema";
+  state.schemaCanCreateCategory = canCreateCategory;
+  state.editingFieldId = null;
   await setView("editor");
 }
 
@@ -644,6 +794,28 @@ function formatScore(score) {
   return new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(score);
 }
 
+function fieldTypeLabel(field) {
+  const labels = {
+    text: "Testo",
+    textarea: "Note lunghe",
+    number: "Numero",
+    rating: "Voto",
+    date: "Data",
+    tags: "Tag"
+  };
+  return labels[field.type] || field.type;
+}
+
+function isCustomField(category, field) {
+  if (field.custom) return true;
+  const builtInByCategory = {
+    films: ["rating", "notes", "director", "year", "watchedOn", "tags"],
+    series: ["rating", "notes", "showrunner", "seasons", "platform", "tags"]
+  };
+  const defaultIds = builtInByCategory[category.id] || ["rating", "tags", "notes"];
+  return !defaultIds.includes(field.id);
+}
+
 function themeLabel(theme) {
   if (theme === "dark") return "Scuro";
   if (theme === "light") return "Chiaro";
@@ -683,6 +855,8 @@ function exposeAgentApi() {
     setView: (view) => state.catalog.setView(view),
     addCategory: (name) => state.catalog.addCategory(name),
     addField: (categoryId, fieldDraft) => state.catalog.addField(categoryId, fieldDraft),
+    updateField: (categoryId, fieldId, fieldDraft) => state.catalog.updateField(categoryId, fieldId, fieldDraft),
+    moveField: (categoryId, fieldId, targetIndex) => state.catalog.moveField(categoryId, fieldId, targetIndex),
     removeField: (categoryId, fieldId) => state.catalog.removeField(categoryId, fieldId),
     upsertItem: (categoryId, formValues, existingId) => state.catalog.upsertItem(categoryId, formValues, existingId),
     setItemDone: (itemId, done) => state.catalog.setItemDone(itemId, done),

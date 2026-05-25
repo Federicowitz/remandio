@@ -927,6 +927,16 @@ output {
   font-size: 1.1rem;
 }
 
+.settings-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .mini-button {
   width: 30px;
   min-height: 30px;
@@ -970,6 +980,39 @@ output {
   padding: 10px 12px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 130ms ease, transform 130ms ease, background 130ms ease;
+}
+
+.schema-row:hover,
+.schema-row:focus-visible {
+  border-color: var(--line-strong);
+  background: var(--surface-strong);
+}
+
+.schema-row.ready-to-drag {
+  cursor: grab;
+}
+
+.schema-row.dragging {
+  opacity: 0.62;
+  cursor: grabbing;
+}
+
+.schema-row.drop-target {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  transform: translateY(2px);
+}
+
+.drag-handle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: -0.04em;
 }
 
 .schema-row div {
@@ -992,6 +1035,10 @@ output {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.field-detail-heading {
+  margin-bottom: 2px;
 }
 
 /* ── Empty state ─────────────────────────────── */

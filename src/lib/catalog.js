@@ -5,11 +5,12 @@ import {
   createItem,
   makeUniqueId,
   normalizeVault,
+  starterCategories,
   textKey,
   titleSimilarity,
   validateItem
-} from "./schema.js?v=11";
-import { exportVault, loadVault, saveVault } from "./storage.js?v=11";
+} from "./schema.js?v=12";
+import { exportVault, loadVault, saveVault } from "./storage.js?v=12";
 
 export async function createCatalog() {
   let vault = await loadVault();
@@ -80,7 +81,8 @@ export async function createCatalog() {
       const usedFieldIds = new Set(target.fields.map((candidate) => candidate.id));
       const uniqueField = {
         ...field,
-        id: makeUniqueId(field.id, usedFieldIds)
+        id: makeUniqueId(field.id, usedFieldIds),
+        custom: true
       };
 
       return persist({
@@ -91,9 +93,91 @@ export async function createCatalog() {
         })
       });
     },
-    async removeField(categoryId, fieldId) {
-      if (!vault.categories.some((category) => category.id === categoryId)) {
+    async updateField(categoryId, fieldId, fieldDraft) {
+      const target = vault.categories.find((category) => category.id === categoryId);
+      if (!target) {
         throw new Error("Categoria non trovata.");
+      }
+
+      const existing = target.fields.find((field) => field.id === fieldId);
+      if (!existing) {
+        throw new Error("Campo non trovato.");
+      }
+
+      const label = String(fieldDraft.label || "").trim();
+      if (!label) {
+        throw new Error("Il nome del campo e obbligatorio.");
+      }
+
+      if (target.fields.some((field) => field.id !== fieldId && textKey(field.label) === textKey(label))) {
+        throw new Error("Campo gia presente in questa categoria.");
+      }
+
+      const updated = { ...existing, label };
+      let nextItems = vault.items;
+
+      if (existing.type === "rating") {
+        const min = finiteNumber(fieldDraft.min, existing.min ?? 0);
+        const max = finiteNumber(fieldDraft.max, existing.max ?? 10);
+        const step = finiteNumber(fieldDraft.step, existing.step ?? 0.5);
+        if (max <= min) {
+          throw new Error("Il valore massimo deve essere maggiore del minimo.");
+        }
+        if (step <= 0) {
+          throw new Error("Lo step deve essere maggiore di zero.");
+        }
+
+        updated.min = min;
+        updated.max = max;
+        updated.step = step;
+        nextItems = rescaleRatingValues(vault.items, categoryId, existing, updated);
+      }
+
+      return persist({
+        ...vault,
+        categories: vault.categories.map((category) => {
+          if (category.id !== categoryId) return category;
+          return {
+            ...category,
+            fields: category.fields.map((field) => (field.id === fieldId ? updated : field))
+          };
+        }),
+        items: nextItems
+      });
+    },
+    async moveField(categoryId, fieldId, targetIndex) {
+      const target = vault.categories.find((category) => category.id === categoryId);
+      if (!target) {
+        throw new Error("Categoria non trovata.");
+      }
+
+      const fromIndex = target.fields.findIndex((field) => field.id === fieldId);
+      const toIndex = Math.max(0, Math.min(Number(targetIndex), target.fields.length - 1));
+      if (fromIndex === -1 || fromIndex === toIndex) return getSnapshot();
+
+      const fields = [...target.fields];
+      const [field] = fields.splice(fromIndex, 1);
+      fields.splice(toIndex, 0, field);
+
+      return persist({
+        ...vault,
+        categories: vault.categories.map((category) => {
+          if (category.id !== categoryId) return category;
+          return { ...category, fields };
+        })
+      });
+    },
+    async removeField(categoryId, fieldId) {
+      const target = vault.categories.find((category) => category.id === categoryId);
+      if (!target) {
+        throw new Error("Categoria non trovata.");
+      }
+      const field = target.fields.find((candidate) => candidate.id === fieldId);
+      if (!field) {
+        throw new Error("Campo non trovato.");
+      }
+      if (!isCustomField(target, field)) {
+        throw new Error("Puoi eliminare solo i campi aggiunti.");
       }
 
       return persist({
@@ -280,4 +364,62 @@ function mergeFields(targetCategory, sourceCategory) {
       id: makeUniqueId(field.id || field.label, usedFieldIds)
     });
   }
+}
+
+function isCustomField(category, field) {
+  if (field.custom) return true;
+  const starter = starterCategories.find((candidate) => candidate.id === category.id);
+  const builtInIds = new Set((starter?.fields ?? defaultCategoryFields()).map((candidate) => candidate.id));
+  return !builtInIds.has(field.id);
+}
+
+function defaultCategoryFields() {
+  return [
+    { id: "rating" },
+    { id: "tags" },
+    { id: "notes" }
+  ];
+}
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function rescaleRatingValues(items, categoryId, oldField, newField) {
+  const oldMin = finiteNumber(oldField.min, 0);
+  const oldMax = finiteNumber(oldField.max, 10);
+  const newMin = finiteNumber(newField.min, 0);
+  const newMax = finiteNumber(newField.max, 10);
+  const oldRange = oldMax - oldMin;
+  const newRange = newMax - newMin;
+  const step = finiteNumber(newField.step, 0);
+  const now = new Date().toISOString();
+
+  return items.map((item) => {
+    if (item.categoryId !== categoryId || item.values[oldField.id] === "" || item.values[oldField.id] === undefined) {
+      return item;
+    }
+
+    const value = Number(item.values[oldField.id]);
+    if (!Number.isFinite(value)) return item;
+
+    const ratio = oldRange > 0 ? (value - oldMin) / oldRange : 0;
+    const nextValue = snapToStep(newMin + Math.max(0, Math.min(1, ratio)) * newRange, newMin, newMax, step);
+    return {
+      ...item,
+      updatedAt: now,
+      values: {
+        ...item.values,
+        [oldField.id]: nextValue
+      }
+    };
+  });
+}
+
+function snapToStep(value, min, max, step) {
+  const clamped = Math.max(min, Math.min(max, value));
+  if (!step || step <= 0) return Number(clamped.toFixed(4));
+  const snapped = min + Math.round((clamped - min) / step) * step;
+  return Number(Math.max(min, Math.min(max, snapped)).toFixed(4));
 }
