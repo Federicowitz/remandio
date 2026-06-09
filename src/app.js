@@ -7,6 +7,7 @@ const refs = {
   categoryForm: document.querySelector("#categoryForm"),
   quickAddCategory: document.querySelector("#quickAddCategory"),
   menuToggle: document.querySelector("#menuToggle"),
+  menuScrim: document.querySelector("#menuScrim"),
   themeToggle: document.querySelector("#themeToggle"),
   exportButton: document.querySelector("#exportButton"),
   importFile: document.querySelector("#importFile"),
@@ -71,8 +72,15 @@ function wireEvents() {
   }
 
   refs.menuToggle.addEventListener("click", () => {
-    const isOpen = document.body.classList.toggle("menu-open");
-    refs.menuToggle.setAttribute("aria-expanded", String(isOpen));
+    setMobileMenuOpen(!document.body.classList.contains("menu-open"));
+  });
+  refs.menuScrim.addEventListener("click", closeMobileMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileMenu();
+  });
+  document.querySelector(".sidebar").addEventListener("click", (event) => {
+    if (event.target.closest("#menuToggle")) return;
+    if (event.target.closest("button, .file-trigger")) closeMobileMenu();
   });
   refs.backToLibraryButton.addEventListener("click", () => setView("library"));
   refs.editCategoryButton.addEventListener("click", () => openSchemaEditor({ canCreateCategory: false }));
@@ -774,8 +782,13 @@ async function openNewItem() {
 }
 
 function closeMobileMenu() {
-  document.body.classList.remove("menu-open");
-  refs.menuToggle.setAttribute("aria-expanded", "false");
+  setMobileMenuOpen(false);
+}
+
+function setMobileMenuOpen(isOpen) {
+  document.body.classList.toggle("menu-open", isOpen);
+  refs.menuToggle.setAttribute("aria-expanded", String(isOpen));
+  refs.menuScrim.hidden = !isOpen;
 }
 
 function activeView() {
