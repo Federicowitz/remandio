@@ -5,12 +5,13 @@ import {
   createItem,
   makeUniqueId,
   normalizeVault,
+  safeTag,
   starterCategories,
   textKey,
   titleSimilarity,
   validateItem
-} from "./schema.js?v=12";
-import { exportVault, loadVault, saveVault } from "./storage.js?v=12";
+} from "./schema.js?v=14";
+import { exportVault, loadVault, saveVault } from "./storage.js?v=14";
 
 export async function createCatalog() {
   let vault = await loadVault();
@@ -59,12 +60,46 @@ export async function createCatalog() {
         preferences: { ...vault.preferences, activeCategoryId: categoryId }
       });
     },
-    async addCategory(name) {
-      const category = createCategory(name);
+    async addCategory(categoryDraft) {
+      const name = String(typeof categoryDraft === "string" ? categoryDraft : categoryDraft?.name || "").trim();
+      if (!name) {
+        throw new Error("Il nome della categoria e obbligatorio.");
+      }
+      if (vault.categories.some((category) => textKey(category.name) === textKey(name))) {
+        throw new Error("Categoria gia presente.");
+      }
+
+      const category = createCategory({
+        name,
+        tag: typeof categoryDraft === "string" ? name : categoryDraft?.tag
+      });
       return persist({
         ...vault,
         preferences: { ...vault.preferences, activeCategoryId: category.id },
         categories: [...vault.categories, category]
+      });
+    },
+    async updateCategory(categoryId, categoryDraft) {
+      const target = vault.categories.find((category) => category.id === categoryId);
+      if (!target) {
+        throw new Error("Categoria non trovata.");
+      }
+
+      const name = String(categoryDraft.name || "").trim();
+      if (!name) {
+        throw new Error("Il nome della categoria e obbligatorio.");
+      }
+
+      if (vault.categories.some((category) => category.id !== categoryId && textKey(category.name) === textKey(name))) {
+        throw new Error("Categoria gia presente.");
+      }
+
+      return persist({
+        ...vault,
+        categories: vault.categories.map((category) => {
+          if (category.id !== categoryId) return category;
+          return { ...category, name, tag: safeTag(categoryDraft.tag || name) };
+        })
       });
     },
     async addField(categoryId, fieldDraft) {

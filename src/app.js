@@ -1,5 +1,5 @@
-import { createCatalog } from "./lib/catalog.js?v=12";
-import { averageRating, displayValue, serializeValue, textKey } from "./lib/schema.js?v=12";
+import { createCatalog } from "./lib/catalog.js?v=15";
+import { averageRating, displayValue, serializeValue, textKey } from "./lib/schema.js?v=14";
 
 const refs = {
   sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
@@ -28,8 +28,11 @@ const refs = {
   itemsSummary: document.querySelector("#itemsSummary"),
   entryTitle: document.querySelector("#entryTitle"),
   entryPanel: document.querySelector("#entryPanel"),
-  clearFormButton: document.querySelector("#clearFormButton"),
+  itemHeaderSubmitButton: document.querySelector("#itemHeaderSubmitButton"),
   schemaPanel: document.querySelector("#schemaPanel"),
+  categoryNameForm: document.querySelector("#categoryNameForm"),
+  editCategoryName: document.querySelector("#editCategoryName"),
+  editCategoryTag: document.querySelector("#editCategoryTag"),
   schemaFields: document.querySelector("#schemaFields"),
   fieldDetail: document.querySelector("#fieldDetail"),
   fieldForm: document.querySelector("#fieldForm")
@@ -88,11 +91,6 @@ function wireEvents() {
 
   refs.newItemButton.addEventListener("click", () => openNewItem());
   refs.newCategoryItemButton.addEventListener("click", () => openNewItem());
-  refs.clearFormButton.addEventListener("click", () => {
-    state.editingId = null;
-    state.formCategoryId = activeCategory().id;
-    renderForm();
-  });
 
   refs.quickAddCategory.addEventListener("click", async () => {
     await openSchemaEditor({ canCreateCategory: true });
@@ -101,14 +99,29 @@ function wireEvents() {
 
   refs.categoryForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const name = new FormData(event.currentTarget).get("name");
-    if (!String(name).trim()) return;
-    await state.catalog.addCategory(name);
-    state.editingId = null;
-    state.formCategoryId = activeCategory().id;
-    state.editorMode = "schema";
-    state.editingFieldId = null;
-    event.currentTarget.reset();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    if (!String(data.name).trim()) return;
+    try {
+      await state.catalog.addCategory(data);
+      state.editingId = null;
+      state.formCategoryId = activeCategory().id;
+      state.editorMode = "schema";
+      state.editingFieldId = null;
+      form.reset();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  refs.categoryNameForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    try {
+      await state.catalog.updateCategory(activeCategory().id, data);
+    } catch (error) {
+      alert(error.message);
+    }
   });
 
   refs.themeToggle.addEventListener("click", async () => {
@@ -290,6 +303,7 @@ function renderForm() {
   const category = state.vault.categories.find((candidate) => candidate.id === (state.formCategoryId || editingItem?.categoryId)) ?? activeCategory();
   state.formCategoryId = category.id;
   refs.entryTitle.textContent = editingItem ? "Modifica elemento" : "Aggiungi elemento";
+  refs.itemHeaderSubmitButton.textContent = editingItem ? "Salva" : "Aggiungi";
   refs.itemForm.replaceChildren();
 
   refs.itemForm.append(
@@ -303,17 +317,34 @@ function renderForm() {
     refs.itemForm.append(fieldShell(field.label, controlForField(field, value)));
   }
 
+  const actions = document.createElement("div");
+  actions.className = "form-actions";
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "ghost-button full";
+  clear.textContent = "Pulisci";
+  clear.addEventListener("click", () => {
+    state.editingId = null;
+    state.formCategoryId = activeCategory().id;
+    renderForm();
+  });
+
   const submit = document.createElement("button");
   submit.type = "submit";
   submit.className = "primary-button full";
   submit.textContent = editingItem ? "Salva modifiche" : "Aggiungi alla lista";
-  refs.itemForm.append(submit);
+  actions.append(clear, submit);
+  refs.itemForm.append(actions);
 }
 
 function renderSchema() {
   const category = activeCategory();
   const editingField = category.fields.find((field) => field.id === state.editingFieldId);
   const detailMode = Boolean(editingField);
+  refs.editCategoryName.value = category.name;
+  refs.editCategoryTag.value = categoryIcon(category);
+  refs.categoryNameForm.hidden = detailMode || state.schemaCanCreateCategory;
   refs.categoryForm.hidden = detailMode || !state.schemaCanCreateCategory;
   refs.schemaFields.hidden = detailMode;
   refs.fieldForm.hidden = detailMode;
@@ -852,6 +883,7 @@ function themeLabel(theme) {
 }
 
 function categoryIcon(category) {
+  if (category?.tag) return category.tag;
   const name = category?.name?.toLowerCase() || "";
   if (name.includes("serie")) return "tv";
   if (name.includes("lib")) return "book";
@@ -883,6 +915,7 @@ function exposeAgentApi() {
     setActiveCategory: (categoryId) => state.catalog.setActiveCategory(categoryId),
     setView: (view) => state.catalog.setView(view),
     addCategory: (name) => state.catalog.addCategory(name),
+    updateCategory: (categoryId, categoryDraft) => state.catalog.updateCategory(categoryId, categoryDraft),
     addField: (categoryId, fieldDraft) => state.catalog.addField(categoryId, fieldDraft),
     updateField: (categoryId, fieldId, fieldDraft) => state.catalog.updateField(categoryId, fieldId, fieldDraft),
     moveField: (categoryId, fieldId, targetIndex) => state.catalog.moveField(categoryId, fieldId, targetIndex),

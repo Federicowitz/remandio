@@ -12,6 +12,7 @@ export const starterCategories = [
   {
     id: "films",
     name: "Film",
+    tag: "film",
     kind: "media",
     color: "#8f8a80",
     fields: [
@@ -27,6 +28,7 @@ export const starterCategories = [
   {
     id: "series",
     name: "Serie TV",
+    tag: "tv",
     kind: "media",
     color: "#7f9886",
     fields: [
@@ -101,6 +103,7 @@ export function normalizeVault(input) {
   vault.categories = vault.categories.map((category) => ({
     id: safeId(category.id || category.name || "category"),
     name: String(category.name || "Senza nome"),
+    tag: categoryTagFor(category),
     kind: String(category.kind || "custom"),
     color: category.color || "#8b8c89",
     fields: Array.isArray(category.fields) ? category.fields.map(normalizeField) : []
@@ -139,11 +142,12 @@ function normalizeItemValues(item) {
   return values;
 }
 
-export function createCategory(name) {
+export function createCategory({ name, tag }) {
   const id = uniqueIdFromName(name);
   return {
     id,
     name: titleCase(name),
+    tag: safeTag(tag || inferredTag(name)),
     kind: "custom",
     color: nextCategoryColor(id),
     fields: [
@@ -333,6 +337,31 @@ function safeId(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") || "item";
+}
+
+export function safeTag(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 8) || "cat";
+}
+
+function categoryTagFor(category) {
+  return safeTag(category.tag || category.icon || inferredTag(category.name));
+}
+
+function inferredTag(name) {
+  const normalized = String(name || "").toLowerCase();
+  if (normalized.includes("serie")) return "tv";
+  if (normalized.includes("lib")) return "book";
+  if (normalized.includes("album")) return "note";
+  if (normalized.includes("live")) return "mic";
+  if (normalized.includes("luog") || normalized.includes("posti")) return "pin";
+  if (normalized.includes("duplic")) return "dup";
+  return name;
 }
 
 function titleCase(value) {

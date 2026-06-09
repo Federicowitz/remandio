@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=18" />
+    <link rel="stylesheet" href="./src/styles.css?v=21" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -106,7 +106,7 @@
                   <p class="eyebrow">Card</p>
                   <h3 id="entryTitle">Aggiungi elemento</h3>
                 </div>
-                <button type="button" id="clearFormButton" class="ghost-button compact">Pulisci</button>
+                <button type="submit" id="itemHeaderSubmitButton" class="primary-button compact" form="itemForm">Aggiungi</button>
               </div>
               <form id="itemForm" class="stacked-form"></form>
             </div>
@@ -118,10 +118,22 @@
                   <h3>Campi categoria</h3>
                 </div>
               </div>
+              <form class="stacked-form category-name-form" id="categoryNameForm">
+                <label>
+                  Nome categoria
+                  <input id="editCategoryName" name="name" type="text" required />
+                </label>
+                <label>
+                  Tag categoria
+                  <input id="editCategoryTag" name="tag" type="text" maxlength="8" placeholder="film, tv, book..." required />
+                </label>
+                <button type="submit" class="primary-button full">Salva categoria</button>
+              </form>
               <form class="inline-form" id="categoryForm">
                 <label for="categoryName">Nuova categoria</label>
-                <div class="inline-row">
-                  <input id="categoryName" name="name" type="text" placeholder="Album, libri, live..." required />
+                <div class="category-create-grid">
+                  <input id="categoryName" name="name" type="text" placeholder="Nome" required />
+                  <input id="categoryTag" name="tag" type="text" maxlength="8" placeholder="Tag" required />
                   <button type="submit" class="icon-button" aria-label="Aggiungi categoria">+</button>
                 </div>
               </form>
@@ -173,6 +185,6 @@
       </div>
     </template>
 
-    <script type="module" src="./src/app.js?v=12"></script>
+    <script type="module" src="./src/app.js?v=16"></script>
   </body>
 </html>
