@@ -515,6 +515,7 @@ function categoryTile(category) {
 function itemCard(item, category) {
   const article = document.createElement("article");
   const score = averageRating(category, item);
+  const scoreLabel = score === null ? "-" : formatScore(score);
   article.className = "memory-card";
   article.classList.toggle("is-done", item.status === "done");
   article.style.setProperty("--category-color", category.color);
@@ -528,7 +529,7 @@ function itemCard(item, category) {
         <span class="status-badge" aria-label="${item.status === "done" ? "Completato" : "Da completare"}">${item.status === "done" ? "✓" : ""}</span>
         <strong>${escapeHtml(item.title)}</strong>
       </span>
-      <span class="score-pill">${score === null ? "-" : formatScore(score)}/10</span>
+      <span class="score-pill" style="${scoreBadgeStyle(score)}" aria-label="${score === null ? "Nessun voto" : `Voto ${scoreLabel} su 10`}">${scoreLabel}</span>
     </button>
     <div id="${detailsId}" class="card-details" hidden>
       <dl class="meta-list">
@@ -579,6 +580,21 @@ function itemCard(item, category) {
 
   actions.append(edit, remove);
   return article;
+}
+
+function scoreBadgeStyle(score) {
+  if (score === null) {
+    return "--score-border: rgba(255, 255, 255, 0.15); --score-text: rgba(255, 255, 255, 0.68);";
+  }
+
+  const normalized = Math.max(0, Math.min(10, Number(score)));
+  const progress = Math.max(0, (normalized - 6) / 4);
+  const color =
+    normalized <= 6
+      ? "rgba(255, 255, 255, 0.18)"
+      : `color-mix(in srgb, rgba(255, 255, 255, 0.24), hsl(270 84% 68%) ${Math.round(progress * 100)}%)`;
+
+  return `--score-border: ${color}; --score-text: rgba(255, 255, 255, ${normalized > 6 ? "0.90" : "0.68"});`;
 }
 
 function attachSwipeStatus(article, item) {
