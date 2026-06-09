@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=16" />
+    <link rel="stylesheet" href="./src/styles.css?v=18" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -22,24 +22,26 @@
           <button type="button" id="menuToggle" class="menu-button" aria-expanded="false" aria-label="Apri menu">Menu</button>
         </div>
 
-        <nav class="side-nav" aria-label="Viste">
-          <button type="button" class="side-link active" data-view="library">Libreria</button>
-          <button type="button" class="side-link" data-view="category">Categoria</button>
-        </nav>
+        <div class="drawer-panel">
+          <nav class="side-nav" aria-label="Viste">
+            <button type="button" class="side-link active" data-view="library">Libreria</button>
+            <button type="button" class="side-link" data-view="category">Categoria</button>
+          </nav>
 
-        <div class="collections-panel">
-          <div class="nav-heading">
-            <span>Categorie</span>
-            <button type="button" id="quickAddCategory" class="mini-button" aria-label="Nuova categoria">+</button>
+          <div class="collections-panel">
+            <div class="nav-heading">
+              <span>Categorie</span>
+              <button type="button" id="quickAddCategory" class="mini-button" aria-label="Nuova categoria">+</button>
+            </div>
+            <nav class="category-nav" id="categoryNav"></nav>
           </div>
-          <nav class="category-nav" id="categoryNav"></nav>
-        </div>
 
-        <div class="sidebar-footer">
-          <button type="button" id="themeToggle" class="side-link">Tema</button>
-          <button type="button" id="exportButton" class="side-link">Esporta libreria</button>
-          <label class="side-link file-trigger" for="importFile">Importa e unisci JSON</label>
-          <input id="importFile" type="file" accept="application/json,.json" />
+          <div class="sidebar-footer">
+            <button type="button" id="themeToggle" class="side-link">Tema</button>
+            <button type="button" id="exportButton" class="side-link">Esporta libreria</button>
+            <label class="side-link file-trigger" for="importFile">Importa e unisci JSON</label>
+            <input id="importFile" type="file" accept="application/json,.json" />
+          </div>
         </div>
       </aside>
       <div id="menuScrim" class="menu-scrim" hidden></div>

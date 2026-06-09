@@ -198,7 +198,7 @@ textarea:focus-visible {
   position: sticky;
   top: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 24px;
   height: 100vh;
   padding: 22px 14px;
@@ -211,6 +211,13 @@ textarea:focus-visible {
 
 .menu-scrim {
   display: none;
+}
+
+.drawer-panel {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 24px;
 }
 
 .brand {
@@ -291,6 +298,8 @@ textarea:focus-visible {
 
 .category-nav {
   min-height: 0;
+  align-content: start;
+  grid-auto-rows: 40px;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -319,6 +328,13 @@ textarea:focus-visible {
   font-weight: 500;
   font-size: 0.88rem;
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.category-pill {
+  height: 40px;
+  min-height: 0;
+  max-height: 40px;
+  border-radius: 12px;
 }
 
 .side-link.active,
@@ -1111,12 +1127,14 @@ output {
 @media (max-width: 680px) {
   .app-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
   }
 
   .sidebar {
     position: sticky;
     top: 0;
-    z-index: 40;
+    z-index: 50;
     grid-template-rows: auto;
     height: 64px;
     min-height: 64px;
@@ -1124,6 +1142,10 @@ output {
     padding: 10px 13px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+  }
+
+  .drawer-panel {
+    display: none;
   }
 
   .hero-bar,
@@ -1147,7 +1169,7 @@ output {
   }
 
   .workspace {
-    padding: 14px;
+    padding: 12px 14px 14px;
   }
 
   .brand {
@@ -1190,25 +1212,20 @@ output {
     font-size: 0.87rem;
   }
 
-  .side-nav,
-  .collections-panel,
-  .sidebar-footer {
-    display: none;
-  }
-
-  body.menu-open .sidebar {
+  body.menu-open .drawer-panel {
     display: grid;
-    position: fixed;
-    z-index: 30;
-    inset: 0 auto 0 0;
+    position: absolute;
+    z-index: 60;
+    top: 64px;
+    left: 0;
     width: min(84vw, 336px);
-    height: 100vh;
-    height: 100dvh;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    height: calc(100vh - 64px);
+    height: calc(100dvh - 64px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 16px;
+    padding: 14px 13px calc(14px + env(safe-area-inset-bottom));
     overflow: auto;
     border-right: 1px solid var(--line);
-    border-bottom: 0;
     background: var(--surface-strong);
     backdrop-filter: blur(52px) saturate(1.55) brightness(1.01);
     -webkit-backdrop-filter: blur(52px) saturate(1.55) brightness(1.01);
@@ -1218,16 +1235,10 @@ output {
     animation: drawer-slide-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  body.menu-open .side-nav,
-  body.menu-open .collections-panel,
-  body.menu-open .sidebar-footer {
-    display: grid;
-  }
-
   .menu-scrim {
     position: fixed;
-    inset: 0;
-    z-index: 20;
+    inset: 64px 0 0;
+    z-index: 30;
     display: block;
     background: rgba(0, 0, 0, 0.36);
     backdrop-filter: blur(1px);
@@ -1241,7 +1252,7 @@ output {
   body.menu-open .category-nav {
     display: grid;
     grid-template-columns: 1fr;
-    max-height: 44vh;
+    max-height: none;
     overflow: auto;
   }
 
