@@ -59,6 +59,7 @@ const state = {
 boot();
 
 async function boot() {
+  mountSettingsPanelOverlay();
   state.catalog = await createCatalog();
   state.vault = state.catalog.getSnapshot();
   state.catalog.subscribe((vault) => {
@@ -70,6 +71,11 @@ async function boot() {
   exposeAgentApi();
   registerServiceWorker();
   render();
+}
+
+function mountSettingsPanelOverlay() {
+  if (refs.settingsPanel.parentElement === document.body) return;
+  document.body.append(refs.settingsPanel);
 }
 
 function wireEvents() {

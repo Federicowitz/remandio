@@ -446,17 +446,20 @@ textarea:focus-visible {
 }
 
 .settings-panel {
-  position: absolute;
-  z-index: 90;
-  left: 0;
-  bottom: calc(100% + 10px);
+  position: fixed;
+  z-index: 1000;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: calc(76px + env(safe-area-inset-bottom));
   display: grid;
   width: min(340px, calc(100vw - 28px));
+  max-height: calc(100dvh - 96px);
   gap: 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface-strong);
   padding: 14px;
+  overflow: auto;
+  overscroll-behavior: contain;
   box-shadow: var(--glass-top), var(--shadow-card);
   backdrop-filter: blur(44px) saturate(1.45);
   -webkit-backdrop-filter: blur(44px) saturate(1.45);
@@ -1445,7 +1448,9 @@ output {
 
   .settings-panel {
     width: min(310px, calc(100vw - 26px));
-    bottom: calc(100% + 8px);
+    left: max(13px, env(safe-area-inset-left));
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 86px);
   }
 
   body.menu-open .drawer-panel {
