@@ -64,7 +64,8 @@ const state = {
   draftCategory: null,
   editingFieldId: null,
   draggingFieldId: null,
-  suppressFieldClick: false
+  suppressFieldClick: false,
+  pendingScrollItemId: null
 };
 
 const titleCollator = new Intl.Collator("it-IT", { sensitivity: "base", numeric: true });
@@ -195,7 +196,7 @@ function wireEvents() {
     toggleSettingsPanel(refs.settingsPanel.hidden);
   });
   refs.settingsClose.addEventListener("click", closeSettingsPanel);
-  refs.backToLibraryButton.addEventListener("click", () => setView("library"));
+  refs.backToLibraryButton.addEventListener("click", closeEditor);
   refs.editCategoryButton.addEventListener("click", () => openSchemaEditor({ canCreateCategory: false }));
   refs.searchInput.addEventListener("input", renderCurrentView);
   refs.itemSortToolbar.addEventListener("click", async (event) => {
@@ -326,11 +327,13 @@ function wireEvents() {
     const categoryId = refs.itemForm.elements.categoryId.value;
     const category = state.vault.categories.find((candidate) => candidate.id === categoryId);
     const formValues = readItemForm(category);
+    const editedItemId = state.editingId;
 
     try {
       await state.catalog.upsertItem(category.id, formValues, state.editingId);
       state.editingId = null;
       state.formCategoryId = category.id;
+      state.pendingScrollItemId = editedItemId;
       await state.catalog.setActiveCategory(category.id);
       await setView("category");
     } catch (error) {
@@ -367,7 +370,7 @@ function renderEditorMode() {
   const itemMode = state.editorMode === "item";
   refs.entryPanel.hidden = !itemMode;
   refs.schemaPanel.hidden = itemMode;
-  refs.backToLibraryButton.textContent = itemMode && editingItem ? "Chiudi" : "Libreria";
+  refs.backToLibraryButton.textContent = "Chiudi";
 }
 
 function renderCurrentView() {
@@ -448,6 +451,7 @@ function renderItems() {
   for (const item of items) {
     refs.itemList.append(itemCard(item, category));
   }
+  scrollPendingItemIntoView();
 }
 
 function renderForm() {
@@ -795,6 +799,7 @@ function itemCard(item, category) {
   const score = averageRating(category, item);
   const scoreLabel = score === null ? "-" : formatScore(score);
   article.className = "memory-card";
+  article.dataset.itemId = item.id;
   article.classList.toggle("is-done", item.status === "done");
   article.style.setProperty("--category-color", category.color);
 
@@ -1026,6 +1031,43 @@ function readItemForm(category) {
 async function setView(view) {
   closeMobileMenu();
   await state.catalog.setView(view);
+}
+
+async function closeEditor() {
+  if (state.editorMode === "schema" && state.schemaCanCreateCategory) {
+    state.editingId = null;
+    state.formCategoryId = null;
+    state.draftCategory = null;
+    state.editingFieldId = null;
+    await setView("library");
+    return;
+  }
+
+  const editingItem = state.vault.items.find((item) => item.id === state.editingId);
+  const targetCategoryId = editingItem?.categoryId || state.formCategoryId || activeCategory().id;
+  if (editingItem) state.pendingScrollItemId = editingItem.id;
+
+  state.editingId = null;
+  state.draftCategory = null;
+  state.editingFieldId = null;
+  state.formCategoryId = targetCategoryId;
+  await state.catalog.setActiveCategory(targetCategoryId);
+  await setView("category");
+}
+
+function scrollPendingItemIntoView() {
+  if (!state.pendingScrollItemId) return;
+  const selector = `.memory-card[data-item-id="${CSS.escape(state.pendingScrollItemId)}"]`;
+  const target = refs.itemList.querySelector(selector);
+  if (!target) {
+    state.pendingScrollItemId = null;
+    return;
+  }
+
+  state.pendingScrollItemId = null;
+  requestAnimationFrame(() => {
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 }
 
 async function openItemEditor() {
