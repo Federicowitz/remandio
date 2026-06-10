@@ -8,9 +8,13 @@ const refs = {
   quickAddCategory: document.querySelector("#quickAddCategory"),
   menuToggle: document.querySelector("#menuToggle"),
   menuScrim: document.querySelector("#menuScrim"),
+  settingsToggle: document.querySelector("#settingsToggle"),
+  settingsPanel: document.querySelector("#settingsPanel"),
+  settingsClose: document.querySelector("#settingsClose"),
   themeToggle: document.querySelector("#themeToggle"),
   exportButton: document.querySelector("#exportButton"),
   importFile: document.querySelector("#importFile"),
+  movieListImportButton: document.querySelector("#movieListImportButton"),
   searchInput: document.querySelector("#searchInput"),
   newItemButton: document.querySelector("#newItemButton"),
   newCategoryItemButton: document.querySelector("#newCategoryItemButton"),
@@ -79,12 +83,25 @@ function wireEvents() {
   });
   refs.menuScrim.addEventListener("click", closeMobileMenu);
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMobileMenu();
+    if (event.key === "Escape") {
+      closeSettingsPanel();
+      closeMobileMenu();
+    }
   });
   document.querySelector(".sidebar").addEventListener("click", (event) => {
     if (event.target.closest("#menuToggle")) return;
+    if (event.target.closest("#settingsToggle, #settingsPanel")) return;
     if (event.target.closest("button, .file-trigger")) closeMobileMenu();
   });
+  document.addEventListener("pointerdown", (event) => {
+    if (refs.settingsPanel.hidden) return;
+    if (event.target.closest("#settingsToggle, #settingsPanel")) return;
+    closeSettingsPanel();
+  });
+  refs.settingsToggle.addEventListener("click", () => {
+    toggleSettingsPanel(refs.settingsPanel.hidden);
+  });
+  refs.settingsClose.addEventListener("click", closeSettingsPanel);
   refs.backToLibraryButton.addEventListener("click", () => setView("library"));
   refs.editCategoryButton.addEventListener("click", () => openSchemaEditor({ canCreateCategory: false }));
   refs.searchInput.addEventListener("input", renderCurrentView);
@@ -154,6 +171,10 @@ function wireEvents() {
     } finally {
       event.currentTarget.value = "";
     }
+  });
+
+  refs.movieListImportButton.addEventListener("click", () => {
+    alert("Qui aggiungeremo il flusso per importare film da liste gia create.");
   });
 
   refs.fieldForm.addEventListener("submit", async (event) => {
@@ -820,6 +841,17 @@ function setMobileMenuOpen(isOpen) {
   document.body.classList.toggle("menu-open", isOpen);
   refs.menuToggle.setAttribute("aria-expanded", String(isOpen));
   refs.menuScrim.hidden = !isOpen;
+  if (!isOpen) closeSettingsPanel();
+}
+
+function toggleSettingsPanel(isOpen) {
+  refs.settingsPanel.hidden = !isOpen;
+  refs.settingsToggle.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("settings-open", isOpen);
+}
+
+function closeSettingsPanel() {
+  toggleSettingsPanel(false);
 }
 
 function activeView() {

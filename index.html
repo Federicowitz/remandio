@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=21" />
+    <link rel="stylesheet" href="./src/styles.css?v=22" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -37,10 +37,45 @@
           </div>
 
           <div class="sidebar-footer">
-            <button type="button" id="themeToggle" class="side-link">Tema</button>
-            <button type="button" id="exportButton" class="side-link">Esporta libreria</button>
-            <label class="side-link file-trigger" for="importFile">Importa e unisci JSON</label>
-            <input id="importFile" type="file" accept="application/json,.json" />
+            <div class="settings-root">
+              <button
+                type="button"
+                id="settingsToggle"
+                class="settings-toggle"
+                aria-label="Apri impostazioni"
+                aria-expanded="false"
+                aria-controls="settingsPanel"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+                  <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.1 2.1 0 1 1-2.97 2.97l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.09 1.65V21a2.1 2.1 0 1 1-4.2 0v-.08A1.8 1.8 0 0 0 8.4 19.3a1.8 1.8 0 0 0-1.98.36l-.05.05a2.1 2.1 0 1 1-2.97-2.97l.05-.05A1.8 1.8 0 0 0 3.8 14.7a1.8 1.8 0 0 0-1.65-1.09H2a2.1 2.1 0 1 1 0-4.2h.08A1.8 1.8 0 0 0 3.7 8.3a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.1 2.1 0 1 1 2.97-2.97l.05.05a1.8 1.8 0 0 0 1.98.36h.1A1.8 1.8 0 0 0 9.5 2.08V2a2.1 2.1 0 1 1 4.2 0v.08a1.8 1.8 0 0 0 1.1 1.64 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.1 2.1 0 1 1 2.97 2.97l-.05.05a1.8 1.8 0 0 0-.36 1.98v.1A1.8 1.8 0 0 0 21.02 9.5H21a2.1 2.1 0 1 1 0 4.2h-.08A1.8 1.8 0 0 0 19.4 15Z"></path>
+                </svg>
+                <span>Impostazioni</span>
+              </button>
+
+              <div id="settingsPanel" class="settings-panel" role="dialog" aria-label="Impostazioni" hidden>
+                <div class="settings-panel-heading">
+                  <div>
+                    <p class="eyebrow">Impostazioni</p>
+                    <h2>Preferenze e import</h2>
+                  </div>
+                  <button type="button" id="settingsClose" class="icon-button quiet" aria-label="Chiudi impostazioni">x</button>
+                </div>
+
+                <div class="settings-group" aria-label="Preferenze libreria">
+                  <button type="button" id="themeToggle" class="settings-action">Tema</button>
+                  <button type="button" id="exportButton" class="settings-action">Esporta libreria</button>
+                  <label class="settings-action file-trigger" for="importFile">Importa e unisci JSON</label>
+                  <input id="importFile" type="file" accept="application/json,.json" />
+                </div>
+
+                <div class="settings-group settings-group-feature" aria-label="Import da liste">
+                  <p class="settings-kicker">Nuova feature</p>
+                  <button type="button" id="movieListImportButton" class="settings-action strong">Importa film da liste</button>
+                  <p class="settings-note">Prepareremo qui il flusso per collegare liste gia create.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
@@ -185,6 +220,6 @@
       </div>
     </template>
 
-    <script type="module" src="./src/app.js?v=16"></script>
+    <script type="module" src="./src/app.js?v=17"></script>
   </body>
 </html>

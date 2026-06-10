@@ -399,9 +399,147 @@ textarea:focus-visible {
 }
 
 .sidebar-footer {
+  position: relative;
   border-top: 1px solid var(--line);
   padding-top: 14px;
   gap: 4px;
+}
+
+.settings-root {
+  position: relative;
+}
+
+.settings-toggle {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  padding: 0 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.settings-toggle:hover,
+.settings-toggle[aria-expanded="true"] {
+  border-color: var(--line);
+  background: var(--surface-strong);
+  box-shadow: var(--glass-top), var(--button-shadow);
+}
+
+.settings-toggle svg,
+.settings-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings-panel {
+  position: absolute;
+  z-index: 90;
+  left: 0;
+  bottom: calc(100% + 10px);
+  display: grid;
+  width: min(340px, calc(100vw - 28px));
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-strong);
+  padding: 14px;
+  box-shadow: var(--glass-top), var(--shadow-card);
+  backdrop-filter: blur(44px) saturate(1.45);
+  -webkit-backdrop-filter: blur(44px) saturate(1.45);
+}
+
+.settings-panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel-heading h2,
+.settings-panel-heading p {
+  margin: 0;
+}
+
+.settings-panel-heading h2 {
+  font-size: 1.05rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.settings-group {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-group+.settings-group {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.settings-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--text);
+  padding: 0 12px;
+  text-align: left;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.settings-action:hover,
+.settings-action:focus-visible {
+  border-color: var(--line);
+  background: var(--surface-muted);
+  box-shadow: var(--glass-top), var(--button-shadow);
+}
+
+.settings-action.strong {
+  border-color: var(--line);
+  background: var(--accent);
+  color: var(--bg);
+  box-shadow: var(--glass-top), var(--button-shadow);
+}
+
+.settings-kicker,
+.settings-note {
+  margin: 0;
+}
+
+.settings-kicker {
+  color: var(--muted);
+  font-size: 0.70rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.settings-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 /* ── Workspace ───────────────────────────────── */
@@ -1042,16 +1180,6 @@ output {
   font-size: 1.1rem;
 }
 
-.settings-button svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .mini-button {
   width: 30px;
   min-height: 30px;
@@ -1276,10 +1404,16 @@ output {
   }
 
   .side-link,
-  .category-pill {
+  .category-pill,
+  .settings-toggle {
     min-height: 40px;
     padding: 0 10px;
     font-size: 0.87rem;
+  }
+
+  .settings-panel {
+    width: min(310px, calc(100vw - 26px));
+    bottom: calc(100% + 8px);
   }
 
   body.menu-open .drawer-panel {
