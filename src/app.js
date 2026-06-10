@@ -35,6 +35,7 @@ const refs = {
   itemHeaderSubmitButton: document.querySelector("#itemHeaderSubmitButton"),
   schemaPanel: document.querySelector("#schemaPanel"),
   categoryNameForm: document.querySelector("#categoryNameForm"),
+  deleteCategoryButton: document.querySelector("#deleteCategoryButton"),
   editCategoryName: document.querySelector("#editCategoryName"),
   editCategoryTag: document.querySelector("#editCategoryTag"),
   schemaFields: document.querySelector("#schemaFields"),
@@ -143,6 +144,21 @@ function wireEvents() {
     const data = Object.fromEntries(new FormData(event.currentTarget));
     try {
       await state.catalog.updateCategory(activeCategory().id, data);
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  refs.deleteCategoryButton.addEventListener("click", async () => {
+    const category = activeCategory();
+    const confirmed = confirmIrreversibleDelete(`Eliminare la categoria "${category.name}" e tutte le sue card?`);
+    if (!confirmed) return;
+    try {
+      state.editingId = null;
+      state.formCategoryId = null;
+      state.editingFieldId = null;
+      await state.catalog.deleteCategory(category.id);
+      await setView("library");
     } catch (error) {
       alert(error.message);
     }
@@ -426,7 +442,6 @@ function renderSchema() {
 }
 
 function renderFieldDetail(category, field) {
-  const canDelete = isCustomField(category, field);
   const previewMode = state.schemaCanCreateCategory;
   const form = document.createElement("form");
   form.className = "stacked-form small-form";
@@ -447,8 +462,18 @@ function renderFieldDetail(category, field) {
       <input type="text" value="${fieldTypeLabel(field)}" disabled />
     </label>
     ${field.type === "rating" ? ratingSettingsMarkup(field) : ""}
-    <button type="submit" class="primary-button full">Salva campo</button>
-    ${canDelete ? '<button type="button" class="ghost-button danger full" data-action="delete">Elimina campo</button>' : ""}
+    <div class="danger-save-row">
+      <button type="button" class="trash-button" data-action="delete" aria-label="Elimina campo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M6 6l1 15h10l1-15" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
+      <button type="submit" class="primary-button full">Salva campo</button>
+    </div>
   `;
 
   form.querySelector('[data-action="back"]').addEventListener("click", () => {
@@ -475,27 +500,21 @@ function renderFieldDetail(category, field) {
 
   const deleteButton = form.querySelector('[data-action="delete"]');
   deleteButton?.addEventListener("click", async () => {
-    if (deleteButton.dataset.confirm === "true") {
-      try {
-        if (previewMode) {
-          removeDraftField(field.id);
-          state.editingFieldId = null;
-          renderSchema();
-          return;
-        }
-        await state.catalog.removeField(category.id, field.id);
+    const confirmed = confirmIrreversibleDelete(`Eliminare il campo "${field.label}"?`);
+    if (!confirmed) return;
+    try {
+      if (previewMode) {
+        removeDraftField(field.id);
         state.editingFieldId = null;
-      } catch (error) {
-        alert(error.message);
+        renderSchema();
+        return;
       }
+      await state.catalog.removeField(category.id, field.id);
+      state.editingFieldId = null;
       return;
+    } catch (error) {
+      alert(error.message);
     }
-    deleteButton.dataset.confirm = "true";
-    deleteButton.textContent = "Conferma eliminazione";
-    setTimeout(() => {
-      deleteButton.dataset.confirm = "false";
-      deleteButton.textContent = "Elimina campo";
-    }, 2500);
   });
 
   refs.fieldDetail.append(form);
@@ -569,8 +588,6 @@ function updateDraftField(fieldId, fieldDraft) {
 
 function removeDraftField(fieldId) {
   const category = draftCategory();
-  const field = category.fields.find((candidate) => candidate.id === fieldId);
-  if (!field || !isCustomField(category, field)) return;
   category.fields = category.fields.filter((candidate) => candidate.id !== fieldId);
 }
 
@@ -999,20 +1016,15 @@ function fieldTypeLabel(field) {
   return labels[field.type] || field.type;
 }
 
-function isCustomField(category, field) {
-  if (field.custom) return true;
-  const builtInByCategory = {
-    films: ["rating", "notes", "director", "year", "watchedOn", "tags"],
-    series: ["rating", "notes", "showrunner", "seasons", "platform", "tags"]
-  };
-  const defaultIds = builtInByCategory[category.id] || ["rating", "tags", "notes"];
-  return !defaultIds.includes(field.id);
-}
-
 function themeLabel(theme) {
   if (theme === "dark") return "Scuro";
   if (theme === "light") return "Chiaro";
   return "Auto";
+}
+
+function confirmIrreversibleDelete(message) {
+  const answer = window.prompt(`${message}\n\nOperazione irreversibile: per eliminare digita la parola elimina.`);
+  return String(answer || "").trim().toLowerCase() === "elimina";
 }
 
 function categoryIcon(category) {
@@ -1049,6 +1061,7 @@ function exposeAgentApi() {
     setView: (view) => state.catalog.setView(view),
     addCategory: (name) => state.catalog.addCategory(name),
     updateCategory: (categoryId, categoryDraft) => state.catalog.updateCategory(categoryId, categoryDraft),
+    deleteCategory: (categoryId) => state.catalog.deleteCategory(categoryId),
     addField: (categoryId, fieldDraft) => state.catalog.addField(categoryId, fieldDraft),
     updateField: (categoryId, fieldId, fieldDraft) => state.catalog.updateField(categoryId, fieldId, fieldDraft),
     moveField: (categoryId, fieldId, targetIndex) => state.catalog.moveField(categoryId, fieldId, targetIndex),

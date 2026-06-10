@@ -7,7 +7,6 @@ import {
   normalizeField,
   normalizeVault,
   safeTag,
-  starterCategories,
   textKey,
   titleSimilarity,
   validateItem
@@ -215,10 +214,6 @@ export async function createCatalog() {
       if (!field) {
         throw new Error("Campo non trovato.");
       }
-      if (!isCustomField(target, field)) {
-        throw new Error("Puoi eliminare solo i campi aggiunti.");
-      }
-
       return persist({
         ...vault,
         categories: vault.categories.map((category) => {
@@ -231,6 +226,27 @@ export async function createCatalog() {
           delete values[fieldId];
           return { ...item, values, updatedAt: new Date().toISOString() };
         })
+      });
+    },
+    async deleteCategory(categoryId) {
+      const target = vault.categories.find((category) => category.id === categoryId);
+      if (!target) {
+        throw new Error("Categoria non trovata.");
+      }
+      if (vault.categories.length <= 1) {
+        throw new Error("Deve esistere almeno una categoria.");
+      }
+
+      const categories = vault.categories.filter((category) => category.id !== categoryId);
+      const activeCategoryId = vault.preferences.activeCategoryId === categoryId
+        ? categories[0].id
+        : vault.preferences.activeCategoryId;
+
+      return persist({
+        ...vault,
+        preferences: { ...vault.preferences, activeCategoryId },
+        categories,
+        items: vault.items.filter((item) => item.categoryId !== categoryId)
       });
     },
     async upsertItem(categoryId, formValues, existingId = null) {
@@ -403,21 +419,6 @@ function mergeFields(targetCategory, sourceCategory) {
       id: makeUniqueId(field.id || field.label, usedFieldIds)
     });
   }
-}
-
-function isCustomField(category, field) {
-  if (field.custom) return true;
-  const starter = starterCategories.find((candidate) => candidate.id === category.id);
-  const builtInIds = new Set((starter?.fields ?? defaultCategoryFields()).map((candidate) => candidate.id));
-  return !builtInIds.has(field.id);
-}
-
-function defaultCategoryFields() {
-  return [
-    { id: "rating" },
-    { id: "tags" },
-    { id: "notes" }
-  ];
 }
 
 function finiteNumber(value, fallback) {

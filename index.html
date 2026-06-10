@@ -162,7 +162,18 @@
                   Tag categoria
                   <input id="editCategoryTag" name="tag" type="text" maxlength="8" placeholder="film, tv, book..." required />
                 </label>
-                <button type="submit" class="primary-button full">Salva categoria</button>
+                <div class="danger-save-row">
+                  <button type="button" id="deleteCategoryButton" class="trash-button" aria-label="Elimina categoria">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M6 6l1 15h10l1-15" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                  </button>
+                  <button type="submit" class="primary-button full">Salva categoria</button>
+                </div>
               </form>
               <form class="inline-form" id="categoryForm">
                 <label for="categoryName">Nuova categoria</label>

@@ -1110,6 +1110,13 @@ output {
   margin-top: 2px;
 }
 
+.danger-save-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
 .category-name-form {
   margin-bottom: 16px;
 }
@@ -1119,7 +1126,8 @@ output {
 .primary-button,
 .ghost-button,
 .icon-button,
-.mini-button {
+.mini-button,
+.trash-button {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -1147,7 +1155,8 @@ output {
 
 .ghost-button,
 .icon-button,
-.mini-button {
+.mini-button,
+.trash-button {
   background: var(--surface-strong);
   box-shadow: var(--glass-top), var(--button-shadow);
   color: var(--text);
@@ -1157,7 +1166,8 @@ output {
 }
 
 .ghost-button:hover,
-.icon-button:hover {
+.icon-button:hover,
+.trash-button:hover {
   box-shadow: var(--glass-top), var(--shadow);
 }
 
@@ -1190,6 +1200,28 @@ output {
   width: 34px;
   min-height: 34px;
   font-size: 0.95rem;
+}
+
+.trash-button {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--line));
+  border-radius: 13px;
+  padding: 0;
+  color: var(--danger);
+}
+
+.trash-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .danger {
