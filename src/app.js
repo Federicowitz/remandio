@@ -833,6 +833,22 @@ function itemCard(item, category) {
   attachSwipeStatus(article, item);
 
   const actions = article.querySelector(".card-actions");
+  const search = document.createElement("button");
+  search.type = "button";
+  search.className = "ghost-button compact card-search-button";
+  search.setAttribute("aria-label", `Cerca ${item.title} ${category.name}`);
+  search.title = "Cerca sul web";
+  search.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6"></circle>
+      <path d="m16 16 4 4"></path>
+    </svg>
+  `;
+  search.addEventListener("click", () => {
+    const params = new URLSearchParams({ q: `${item.title} ${category.name}` });
+    window.open(`https://www.google.com/search?${params.toString()}`, "_blank", "noopener,noreferrer");
+  });
+
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "ghost-button compact";
@@ -861,7 +877,7 @@ function itemCard(item, category) {
     }, 2500);
   });
 
-  actions.append(edit, remove);
+  actions.append(search, edit, remove);
   return article;
 }
 

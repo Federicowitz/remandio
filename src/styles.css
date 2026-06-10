@@ -606,6 +606,23 @@ textarea:focus-visible {
   gap: 8px;
 }
 
+.card-search-button {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  padding: 0;
+}
+
+.card-search-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .sort-toolbar {
   display: flex;
   align-items: center;
