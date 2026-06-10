@@ -4,6 +4,7 @@ import {
   createField,
   createItem,
   makeUniqueId,
+  normalizeField,
   normalizeVault,
   safeTag,
   starterCategories,
@@ -73,6 +74,9 @@ export async function createCatalog() {
         name,
         tag: typeof categoryDraft === "string" ? name : categoryDraft?.tag
       });
+      if (typeof categoryDraft !== "string" && Array.isArray(categoryDraft?.fields) && categoryDraft.fields.length) {
+        category.fields = categoryDraft.fields.map(normalizeField);
+      }
       return persist({
         ...vault,
         preferences: { ...vault.preferences, activeCategoryId: category.id },

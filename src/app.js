@@ -1,5 +1,5 @@
 import { createCatalog } from "./lib/catalog.js?v=15";
-import { averageRating, displayValue, serializeValue, textKey } from "./lib/schema.js?v=14";
+import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=14";
 
 const refs = {
   sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
@@ -49,6 +49,7 @@ const state = {
   formCategoryId: null,
   editorMode: "item",
   schemaCanCreateCategory: false,
+  draftCategory: null,
   editingFieldId: null,
   draggingFieldId: null,
   suppressFieldClick: false
@@ -120,12 +121,18 @@ function wireEvents() {
     const data = Object.fromEntries(new FormData(form));
     if (!String(data.name).trim()) return;
     try {
-      await state.catalog.addCategory(data);
+      await state.catalog.addCategory({
+        ...data,
+        fields: state.draftCategory?.fields
+      });
       state.editingId = null;
       state.formCategoryId = activeCategory().id;
       state.editorMode = "schema";
+      state.schemaCanCreateCategory = false;
+      state.draftCategory = null;
       state.editingFieldId = null;
       form.reset();
+      render();
     } catch (error) {
       alert(error.message);
     }
@@ -181,6 +188,15 @@ function wireEvents() {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     try {
+      if (state.schemaCanCreateCategory) {
+        addDraftField(data);
+        event.currentTarget.reset();
+        event.currentTarget.elements.min.value = 0;
+        event.currentTarget.elements.max.value = 10;
+        event.currentTarget.elements.step.value = 0.5;
+        renderSchema();
+        return;
+      }
       await state.catalog.addField(activeCategory().id, data);
       event.currentTarget.reset();
       event.currentTarget.elements.min.value = 0;
@@ -360,7 +376,8 @@ function renderForm() {
 }
 
 function renderSchema() {
-  const category = activeCategory();
+  const previewMode = state.schemaCanCreateCategory;
+  const category = previewMode ? draftCategory() : activeCategory();
   const editingField = category.fields.find((field) => field.id === state.editingFieldId);
   const detailMode = Boolean(editingField);
   refs.editCategoryName.value = category.name;
@@ -410,6 +427,7 @@ function renderSchema() {
 
 function renderFieldDetail(category, field) {
   const canDelete = isCustomField(category, field);
+  const previewMode = state.schemaCanCreateCategory;
   const form = document.createElement("form");
   form.className = "stacked-form small-form";
   form.innerHTML = `
@@ -442,6 +460,12 @@ function renderFieldDetail(category, field) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form));
     try {
+      if (previewMode) {
+        updateDraftField(field.id, data);
+        state.editingFieldId = field.id;
+        renderSchema();
+        return;
+      }
       await state.catalog.updateField(category.id, field.id, data);
       state.editingFieldId = field.id;
     } catch (error) {
@@ -453,6 +477,12 @@ function renderFieldDetail(category, field) {
   deleteButton?.addEventListener("click", async () => {
     if (deleteButton.dataset.confirm === "true") {
       try {
+        if (previewMode) {
+          removeDraftField(field.id);
+          state.editingFieldId = null;
+          renderSchema();
+          return;
+        }
         await state.catalog.removeField(category.id, field.id);
         state.editingFieldId = null;
       } catch (error) {
@@ -488,6 +518,71 @@ function ratingSettingsMarkup(field) {
       </label>
     </div>
   `;
+}
+
+function draftCategory() {
+  state.draftCategory ??= createCategory({ name: "Nuova categoria", tag: "new" });
+  return state.draftCategory;
+}
+
+function addDraftField(fieldDraft) {
+  const category = draftCategory();
+  const field = createField(fieldDraft);
+  if (category.fields.some((candidate) => textKey(candidate.label) === textKey(field.label))) {
+    throw new Error("Campo gia presente in questa categoria.");
+  }
+
+  const usedFieldIds = new Set(category.fields.map((candidate) => candidate.id));
+  category.fields = [
+    ...category.fields,
+    {
+      ...field,
+      id: makeUniqueId(field.id, usedFieldIds),
+      custom: true
+    }
+  ];
+}
+
+function updateDraftField(fieldId, fieldDraft) {
+  const category = draftCategory();
+  const existing = category.fields.find((field) => field.id === fieldId);
+  if (!existing) throw new Error("Campo non trovato.");
+
+  const updated = {
+    ...existing,
+    label: String(fieldDraft.label || "").trim()
+  };
+  if (!updated.label) throw new Error("Il nome del campo e obbligatorio.");
+
+  if (existing.type === "rating" || existing.type === "number") {
+    updated.min = Number(fieldDraft.min ?? existing.min ?? 0);
+    updated.max = Number(fieldDraft.max ?? existing.max ?? 10);
+    updated.step = Number(fieldDraft.step ?? existing.step ?? 1);
+  }
+
+  if (category.fields.some((field) => field.id !== fieldId && textKey(field.label) === textKey(updated.label))) {
+    throw new Error("Campo gia presente in questa categoria.");
+  }
+
+  category.fields = category.fields.map((field) => (field.id === fieldId ? updated : field));
+}
+
+function removeDraftField(fieldId) {
+  const category = draftCategory();
+  const field = category.fields.find((candidate) => candidate.id === fieldId);
+  if (!field || !isCustomField(category, field)) return;
+  category.fields = category.fields.filter((candidate) => candidate.id !== fieldId);
+}
+
+function moveDraftField(fieldId, targetIndex) {
+  const category = draftCategory();
+  const fromIndex = category.fields.findIndex((field) => field.id === fieldId);
+  if (fromIndex < 0) return;
+  const fields = [...category.fields];
+  const [field] = fields.splice(fromIndex, 1);
+  fields.splice(Math.max(0, Math.min(targetIndex, fields.length)), 0, field);
+  category.fields = fields;
+  renderSchema();
 }
 
 function attachFieldDrag(row, category, field) {
@@ -538,6 +633,10 @@ function attachFieldDrag(row, category, field) {
     const draggedId = event.dataTransfer.getData("text/plain") || state.draggingFieldId;
     if (!draggedId || draggedId === field.id) return;
     try {
+      if (state.schemaCanCreateCategory) {
+        moveDraftField(draggedId, Number(row.dataset.index));
+        return;
+      }
       await state.catalog.moveField(category.id, draggedId, Number(row.dataset.index));
     } catch (error) {
       alert(error.message);
@@ -813,6 +912,7 @@ async function setView(view) {
 async function openItemEditor() {
   state.editorMode = "item";
   state.schemaCanCreateCategory = false;
+  state.draftCategory = null;
   state.editingFieldId = null;
   state.formCategoryId = activeCategory().id;
   await setView("editor");
@@ -823,6 +923,7 @@ async function openSchemaEditor({ canCreateCategory = false } = {}) {
   state.formCategoryId = activeCategory().id;
   state.editorMode = "schema";
   state.schemaCanCreateCategory = canCreateCategory;
+  state.draftCategory = canCreateCategory ? createCategory({ name: "Nuova categoria", tag: "new" }) : null;
   state.editingFieldId = null;
   await setView("editor");
 }
