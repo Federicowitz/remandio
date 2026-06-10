@@ -14,6 +14,8 @@ import {
 } from "./schema.js?v=17";
 import { exportVault, loadVault, saveVault } from "./storage.js?v=17";
 
+const CATEGORY_NAME_MAX_LENGTH = 32;
+
 export async function createCatalog() {
   let vault = await loadVault();
   const subscribers = new Set();
@@ -78,10 +80,7 @@ export async function createCatalog() {
       });
     },
     async addCategory(categoryDraft) {
-      const name = String(typeof categoryDraft === "string" ? categoryDraft : categoryDraft?.name || "").trim();
-      if (!name) {
-        throw new Error("Il nome della categoria e obbligatorio.");
-      }
+      const name = normalizeCategoryName(typeof categoryDraft === "string" ? categoryDraft : categoryDraft?.name);
       if (vault.categories.some((category) => textKey(category.name) === textKey(name))) {
         throw new Error("Categoria gia presente.");
       }
@@ -106,10 +105,7 @@ export async function createCatalog() {
         throw new Error("Categoria non trovata.");
       }
 
-      const name = String(categoryDraft.name || "").trim();
-      if (!name) {
-        throw new Error("Il nome della categoria e obbligatorio.");
-      }
+      const name = normalizeCategoryName(categoryDraft.name);
 
       if (vault.categories.some((category) => category.id !== categoryId && textKey(category.name) === textKey(name))) {
         throw new Error("Categoria gia presente.");
@@ -465,6 +461,17 @@ function normalizeSortMode(sortMode) {
 function normalizeEditableCategoryKind(kind) {
   const normalized = normalizeCategoryKind(kind);
   return textKey(normalized) === "review" ? "custom" : normalized;
+}
+
+function normalizeCategoryName(value) {
+  const name = String(value || "").trim();
+  if (!name) {
+    throw new Error("Il nome della categoria e obbligatorio.");
+  }
+  if (name.length > CATEGORY_NAME_MAX_LENGTH) {
+    throw new Error(`Il nome della categoria deve avere al massimo ${CATEGORY_NAME_MAX_LENGTH} caratteri.`);
+  }
+  return name;
 }
 
 function importMovieEntries(currentVault, categoryId, entries) {

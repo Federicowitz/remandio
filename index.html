@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=32" />
+    <link rel="stylesheet" href="./src/styles.css?v=36" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -173,7 +173,7 @@
               <form class="stacked-form category-name-form" id="categoryNameForm">
                 <label>
                   Nome categoria
-                  <input id="editCategoryName" name="name" type="text" required />
+                  <input id="editCategoryName" name="name" type="text" maxlength="32" required />
                 </label>
                 <label>
                   Tag categoria
@@ -211,7 +211,7 @@
               <form class="inline-form" id="categoryForm">
                 <label for="categoryName">Nuova categoria</label>
                 <div class="category-create-grid">
-                  <input id="categoryName" name="name" type="text" placeholder="Nome" required />
+                  <input id="categoryName" name="name" type="text" maxlength="32" placeholder="Nome" required />
                   <input id="categoryTag" name="tag" type="text" maxlength="8" placeholder="Tag" required />
                   <span class="category-kind-picker" data-kind-picker>
                     <input id="categoryKind" name="kind" type="hidden" value="custom" required />

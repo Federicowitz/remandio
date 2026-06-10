@@ -1,4 +1,4 @@
-import { createCatalog } from "./lib/catalog.js?v=20";
+import { createCatalog } from "./lib/catalog.js?v=22";
 import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=17";
 
 const refs = {
