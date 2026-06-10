@@ -53,7 +53,8 @@ export function createEmptyVault() {
     preferences: {
       theme: "system",
       activeCategoryId: "films",
-      activeView: "library"
+      activeView: "library",
+      categorySorts: {}
     },
     categories: structuredClone(starterCategories),
     items: [
@@ -90,6 +91,7 @@ export function normalizeVault(input) {
       theme: "system",
       activeCategoryId: "films",
       activeView: "library",
+      categorySorts: {},
       ...(input.preferences ?? {})
     },
     categories: Array.isArray(input.categories) ? input.categories : [],
@@ -100,16 +102,21 @@ export function normalizeVault(input) {
     vault.categories = structuredClone(starterCategories);
   }
 
+  if (!vault.preferences.categorySorts || typeof vault.preferences.categorySorts !== "object" || Array.isArray(vault.preferences.categorySorts)) {
+    vault.preferences.categorySorts = {};
+  }
+
   vault.categories = vault.categories.map((category) => ({
     id: safeId(category.id || category.name || "category"),
     name: String(category.name || "Senza nome"),
     tag: categoryTagFor(category),
-    kind: String(category.kind || "custom"),
+    kind: normalizeCategoryKind(category.kind),
     color: category.color || "#8b8c89",
     fields: Array.isArray(category.fields) ? category.fields.map(normalizeField) : []
   }));
 
-  const categoryIds = new Set(vault.categories.map((category) => category.id));
+  const categoryById = new Map(vault.categories.map((category) => [category.id, category]));
+  const categoryIds = new Set(categoryById.keys());
   vault.items = vault.items
     .filter((item) => item && item.title && categoryIds.has(item.categoryId))
     .map((item) => ({
@@ -119,14 +126,14 @@ export function normalizeVault(input) {
       status: STATUSES[item.status] ? item.status : "planned",
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: item.updatedAt || new Date().toISOString(),
-      values: normalizeItemValues(item)
+      values: normalizeItemValues(item, categoryById.get(item.categoryId))
     }));
 
   vault.updatedAt = new Date().toISOString();
   return vault;
 }
 
-function normalizeItemValues(item) {
+function normalizeItemValues(item, category) {
   const values = item.values && typeof item.values === "object" ? item.values : {};
   if (item.categoryId === "films" && item.title === "Esempio: Her" && !("rating" in values)) {
     return {
@@ -139,16 +146,25 @@ function normalizeItemValues(item) {
       notes: "Una card di esempio. Modifica o elimina liberamente."
     };
   }
-  return values;
+
+  if (!category) return values;
+
+  return Object.fromEntries(
+    Object.entries(values).map(([key, value]) => {
+      const field = category.fields.find((candidate) => candidate.id === key);
+      if (!field || (field.type !== "number" && field.type !== "rating")) return [key, value];
+      return [key, serializeValue(field, value)];
+    })
+  );
 }
 
-export function createCategory({ name, tag }) {
+export function createCategory({ name, tag, kind = "custom" }) {
   const id = uniqueIdFromName(name);
   return {
     id,
     name: titleCase(name),
     tag: safeTag(tag || inferredTag(name)),
-    kind: "custom",
+    kind: normalizeCategoryKind(kind),
     color: nextCategoryColor(id),
     fields: [
       ratingField("rating", "Valutazione", 0, 10, 0.5),
@@ -156,6 +172,11 @@ export function createCategory({ name, tag }) {
       textareaField("notes", "Note")
     ]
   };
+}
+
+export function normalizeCategoryKind(kind) {
+  const normalized = String(kind || "custom").trim().replace(/\s+/g, " ");
+  return normalized || "custom";
 }
 
 export function createField({ label, type, min, max, step }) {
@@ -233,7 +254,8 @@ export function normalizeField(field) {
 export function serializeValue(field, rawValue) {
   if (field.type === "number" || field.type === "rating") {
     if (rawValue === "" || rawValue === null || rawValue === undefined) return "";
-    return Number(rawValue);
+    const number = localizedNumber(rawValue);
+    return Number.isFinite(number) ? number : "";
   }
 
   if (field.type === "tags") {
@@ -372,8 +394,18 @@ function titleCase(value) {
 }
 
 function finiteNumber(value, fallback) {
-  const number = Number(value);
+  const number = localizedNumber(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function localizedNumber(value) {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim();
+  if (!text) return NaN;
+  const normalized = text.includes(",")
+    ? text.replace(/\./g, "").replace(",", ".")
+    : text;
+  return Number(normalized);
 }
 
 function nextCategoryColor(seed) {
@@ -402,7 +434,7 @@ function fallbackRatingScores(item) {
   const ratingKey = /(rating|voto|score|visuals|characters|immagine|personaggi|storia|acting|sound|music)/i;
   return Object.entries(item.values || {})
     .filter(([key]) => ratingKey.test(key))
-    .map(([, value]) => Number(value))
+    .map(([, value]) => localizedNumber(value))
     .filter((value) => Number.isFinite(value) && value > 0)
     .map((value) => Math.min(10, value));
 }

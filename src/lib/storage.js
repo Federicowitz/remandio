@@ -1,4 +1,4 @@
-import { createEmptyVault, normalizeVault } from "./schema.js?v=14";
+import { createEmptyVault, normalizeVault } from "./schema.js?v=17";
 
 const DB_NAME = "remandio-indexeddb";
 const DB_VERSION = 1;

@@ -4,14 +4,15 @@ import {
   createField,
   createItem,
   makeUniqueId,
+  normalizeCategoryKind,
   normalizeField,
   normalizeVault,
   safeTag,
   textKey,
   titleSimilarity,
   validateItem
-} from "./schema.js?v=14";
-import { exportVault, loadVault, saveVault } from "./storage.js?v=14";
+} from "./schema.js?v=17";
+import { exportVault, loadVault, saveVault } from "./storage.js?v=17";
 
 export async function createCatalog() {
   let vault = await loadVault();
@@ -60,6 +61,22 @@ export async function createCatalog() {
         preferences: { ...vault.preferences, activeCategoryId: categoryId }
       });
     },
+    async setCategorySort(categoryId, sortMode) {
+      if (!vault.categories.some((category) => category.id === categoryId)) {
+        throw new Error("Categoria non trovata.");
+      }
+
+      return persist({
+        ...vault,
+        preferences: {
+          ...vault.preferences,
+          categorySorts: {
+            ...(vault.preferences.categorySorts ?? {}),
+            [categoryId]: normalizeSortMode(sortMode)
+          }
+        }
+      });
+    },
     async addCategory(categoryDraft) {
       const name = String(typeof categoryDraft === "string" ? categoryDraft : categoryDraft?.name || "").trim();
       if (!name) {
@@ -71,7 +88,8 @@ export async function createCatalog() {
 
       const category = createCategory({
         name,
-        tag: typeof categoryDraft === "string" ? name : categoryDraft?.tag
+        tag: typeof categoryDraft === "string" ? name : categoryDraft?.tag,
+        kind: typeof categoryDraft === "string" ? "custom" : normalizeEditableCategoryKind(categoryDraft?.kind)
       });
       if (typeof categoryDraft !== "string" && Array.isArray(categoryDraft?.fields) && categoryDraft.fields.length) {
         category.fields = categoryDraft.fields.map(normalizeField);
@@ -97,11 +115,13 @@ export async function createCatalog() {
         throw new Error("Categoria gia presente.");
       }
 
+      const kind = target.kind === "review" ? "review" : normalizeEditableCategoryKind(categoryDraft.kind);
+
       return persist({
         ...vault,
         categories: vault.categories.map((category) => {
           if (category.id !== categoryId) return category;
-          return { ...category, name, tag: safeTag(categoryDraft.tag || name) };
+          return { ...category, name, tag: safeTag(categoryDraft.tag || name), kind };
         })
       });
     },
@@ -425,6 +445,26 @@ function mergeFields(targetCategory, sourceCategory) {
       id: makeUniqueId(field.id || field.label, usedFieldIds)
     });
   }
+}
+
+function normalizeSortMode(sortMode) {
+  const allowed = new Set([
+    "updated-desc",
+    "updated-asc",
+    "created-desc",
+    "title-asc",
+    "title-desc",
+    "status-planned-first",
+    "status-done-first",
+    "rating-desc",
+    "rating-asc"
+  ]);
+  return allowed.has(sortMode) ? sortMode : "updated-desc";
+}
+
+function normalizeEditableCategoryKind(kind) {
+  const normalized = normalizeCategoryKind(kind);
+  return textKey(normalized) === "review" ? "custom" : normalized;
 }
 
 function importMovieEntries(currentVault, categoryId, entries) {

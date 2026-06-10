@@ -1,5 +1,5 @@
-import { createCatalog } from "./lib/catalog.js?v=17";
-import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=14";
+import { createCatalog } from "./lib/catalog.js?v=20";
+import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=17";
 
 const refs = {
   sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
@@ -34,6 +34,7 @@ const refs = {
   activeCategoryKind: document.querySelector("#activeCategoryKind"),
   activeCategoryTitle: document.querySelector("#activeCategoryTitle"),
   duplicateNotice: document.querySelector("#duplicateNotice"),
+  itemSortToolbar: document.querySelector("#itemSortToolbar"),
   itemForm: document.querySelector("#itemForm"),
   itemList: document.querySelector("#itemList"),
   itemsSummary: document.querySelector("#itemsSummary"),
@@ -45,6 +46,9 @@ const refs = {
   deleteCategoryButton: document.querySelector("#deleteCategoryButton"),
   editCategoryName: document.querySelector("#editCategoryName"),
   editCategoryTag: document.querySelector("#editCategoryTag"),
+  editCategoryKind: document.querySelector("#editCategoryKind"),
+  categoryKind: document.querySelector("#categoryKind"),
+  categoryKindPickers: [...document.querySelectorAll("[data-kind-picker]")],
   schemaFields: document.querySelector("#schemaFields"),
   fieldDetail: document.querySelector("#fieldDetail"),
   fieldForm: document.querySelector("#fieldForm")
@@ -62,6 +66,8 @@ const state = {
   draggingFieldId: null,
   suppressFieldClick: false
 };
+
+const titleCollator = new Intl.Collator("it-IT", { sensitivity: "base", numeric: true });
 
 boot();
 
@@ -152,6 +158,7 @@ function wireEvents() {
   refs.menuScrim.addEventListener("click", closeMobileMenu);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closeCategoryKindMenus();
       closeSettingsPanel();
       closeMobileMenu();
     }
@@ -162,9 +169,27 @@ function wireEvents() {
     if (event.target.closest("button, .file-trigger")) closeMobileMenu();
   });
   document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("[data-kind-picker]")) closeCategoryKindMenus();
     if (refs.settingsPanel.hidden) return;
     if (event.target.closest("#settingsToggle, #settingsPanel")) return;
     closeSettingsPanel();
+  });
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-kind-trigger]");
+    if (trigger) {
+      toggleCategoryKindMenu(trigger.closest("[data-kind-picker]"));
+      return;
+    }
+
+    const option = event.target.closest("[data-kind-option]");
+    if (option) {
+      setCategoryKindValue(option.closest("[data-kind-picker]"), option.dataset.kind);
+    }
+  });
+  document.addEventListener("input", (event) => {
+    if (!event.target.matches("[data-kind-new]")) return;
+    const value = event.target.value.trim();
+    if (value) setCategoryKindValue(event.target.closest("[data-kind-picker]"), value, { keepNewInput: true });
   });
   refs.settingsToggle.addEventListener("click", () => {
     toggleSettingsPanel(refs.settingsPanel.hidden);
@@ -173,6 +198,11 @@ function wireEvents() {
   refs.backToLibraryButton.addEventListener("click", () => setView("library"));
   refs.editCategoryButton.addEventListener("click", () => openSchemaEditor({ canCreateCategory: false }));
   refs.searchInput.addEventListener("input", renderCurrentView);
+  refs.itemSortToolbar.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-sort-group]");
+    if (!button) return;
+    await state.catalog.setCategorySort(activeCategory().id, nextSortMode(activeCategorySort(activeCategory().id), button.dataset.sortGroup));
+  });
 
   refs.newItemButton.addEventListener("click", () => openNewItem());
   refs.newCategoryItemButton.addEventListener("click", () => openNewItem());
@@ -390,8 +420,9 @@ function renderLibrary() {
 function renderCategoryHeader() {
   const category = activeCategory();
   refs.activeCategoryTitle.textContent = category.name;
-  refs.activeCategoryKind.textContent = category.kind === "review" ? "Revisione import" : category.kind === "media" ? "Media" : "Categoria custom";
+  refs.activeCategoryKind.textContent = categoryKindLabel(category.kind);
   refs.itemsSummary.textContent = `${countItems(category.id)} ${countItems(category.id) === 1 ? "elemento" : "elementi"}`;
+  renderSortToolbar(activeCategorySort(category.id));
 
   const duplicates = category.id === "duplicates-review" ? countItems(category.id) : 0;
   refs.duplicateNotice.hidden = duplicates === 0;
@@ -406,7 +437,7 @@ function renderItems() {
   const items = state.vault.items
     .filter((item) => item.categoryId === category.id)
     .filter((item) => !query || itemMatchesQuery(item, query))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    .sort((a, b) => compareItems(a, b, category, activeCategorySort(category.id)));
 
   refs.itemList.replaceChildren();
   if (!items.length) {
@@ -466,6 +497,9 @@ function renderSchema() {
   const detailMode = Boolean(editingField);
   refs.editCategoryName.value = category.name;
   refs.editCategoryTag.value = categoryIcon(category);
+  refs.editCategoryKind.value = editableCategoryKind(category.kind);
+  renderCategoryKindPickers();
+  setCategoryKindPickerDisabled(refs.editCategoryKind.closest("[data-kind-picker]"), category.kind === "review");
   refs.categoryNameForm.hidden = detailMode || state.schemaCanCreateCategory;
   refs.categoryForm.hidden = detailMode || !state.schemaCanCreateCategory;
   refs.schemaFields.hidden = detailMode;
@@ -889,8 +923,8 @@ function inputElement(type, name, value, attrs = {}) {
   const input = document.createElement("input");
   input.type = type;
   input.name = name;
-  input.value = value ?? "";
   Object.entries(attrs).forEach(([key, attrValue]) => input.setAttribute(key, attrValue));
+  input.value = value ?? "";
   return input;
 }
 
@@ -1050,6 +1084,196 @@ function activeCategory() {
 
 function countItems(categoryId) {
   return state.vault.items.filter((item) => item.categoryId === categoryId).length;
+}
+
+function activeCategorySort(categoryId) {
+  const sortMode = state.vault.preferences.categorySorts?.[categoryId];
+  const allowed = new Set([
+    "updated-desc",
+    "updated-asc",
+    "created-desc",
+    "title-asc",
+    "title-desc",
+    "status-planned-first",
+    "status-done-first",
+    "rating-desc",
+    "rating-asc"
+  ]);
+  return allowed.has(sortMode) ? sortMode : "updated-desc";
+}
+
+function nextSortMode(currentMode, group) {
+  const cycle = {
+    title: ["title-asc", "title-desc"],
+    status: ["status-planned-first", "status-done-first"],
+    rating: ["rating-desc", "rating-asc"],
+    latest: ["updated-desc", "updated-asc"]
+  }[group];
+  if (!cycle) return currentMode;
+  return currentMode === cycle[0] ? cycle[1] : cycle[0];
+}
+
+function renderSortToolbar(sortMode) {
+  for (const button of refs.itemSortToolbar.querySelectorAll("[data-sort-group]")) {
+    const group = button.dataset.sortGroup;
+    const active = sortGroup(sortMode) === group;
+    button.classList.toggle("active", active);
+    button.querySelector(".sort-arrow").textContent = active ? sortArrow(sortMode) : "-";
+    button.title = sortTitle(group, active ? sortMode : null);
+  }
+}
+
+function sortGroup(sortMode) {
+  if (sortMode.startsWith("title-")) return "title";
+  if (sortMode.startsWith("status-")) return "status";
+  if (sortMode.startsWith("rating-")) return "rating";
+  return "latest";
+}
+
+function sortArrow(sortMode) {
+  if (sortMode.endsWith("-asc") || sortMode === "status-planned-first") return "^";
+  return "v";
+}
+
+function sortTitle(group, sortMode) {
+  if (sortMode === "title-desc") return "Alfabetico: Z-A";
+  if (sortMode === "status-done-first") return "Completati prima";
+  if (sortMode === "rating-asc") return "Voto basso prima";
+  if (sortMode === "updated-asc") return "Meno recenti prima";
+  const labels = {
+    title: "Alfabetico: A-Z",
+    status: "Non completati prima",
+    rating: "Voto alto prima",
+    latest: "Piu recenti prima"
+  };
+  return labels[group] || "Ordina";
+}
+
+function compareItems(left, right, category, sortMode) {
+  const byTitle = () => titleCollator.compare(left.title, right.title);
+  const byUpdatedDesc = () => compareDateDesc(left.updatedAt, right.updatedAt) || byTitle();
+
+  if (sortMode === "title-asc") return byTitle() || byUpdatedDesc();
+  if (sortMode === "title-desc") return -byTitle() || byUpdatedDesc();
+  if (sortMode === "created-desc") return compareDateDesc(left.createdAt, right.createdAt) || byTitle();
+  if (sortMode === "updated-asc") return -compareDateDesc(left.updatedAt, right.updatedAt) || byTitle();
+  if (sortMode === "status-planned-first") return compareStatus(left, right, false) || byUpdatedDesc();
+  if (sortMode === "status-done-first") return compareStatus(left, right, true) || byUpdatedDesc();
+  if (sortMode === "rating-asc") return compareRating(left, right, category, true) || byTitle();
+  if (sortMode === "rating-desc") return compareRating(left, right, category, false) || byTitle();
+  return byUpdatedDesc();
+}
+
+function compareDateDesc(leftDate, rightDate) {
+  const leftTime = Date.parse(leftDate || "") || 0;
+  const rightTime = Date.parse(rightDate || "") || 0;
+  return rightTime - leftTime;
+}
+
+function compareStatus(left, right, doneFirst) {
+  const rank = (item) => {
+    if (item.status === "done") return doneFirst ? 0 : 1;
+    return doneFirst ? 1 : 0;
+  };
+  return rank(left) - rank(right);
+}
+
+function compareRating(left, right, category, ascending) {
+  const leftScore = averageRating(category, left);
+  const rightScore = averageRating(category, right);
+  const leftMissing = leftScore === null;
+  const rightMissing = rightScore === null;
+  if (leftMissing && rightMissing) return 0;
+  if (leftMissing) return 1;
+  if (rightMissing) return -1;
+  return ascending ? leftScore - rightScore : rightScore - leftScore;
+}
+
+function editableCategoryKind(kind) {
+  return kind === "review" ? "review" : String(kind || "custom");
+}
+
+function categoryKindLabel(kind) {
+  if (kind === "review") return "Revisione import";
+  return String(kind || "custom");
+}
+
+function categoryKindChoices() {
+  const kinds = new Set(["media", "custom"]);
+  for (const category of state.vault.categories) {
+    if (category.kind !== "review") kinds.add(category.kind || "custom");
+  }
+  return [...kinds].filter(Boolean).sort((a, b) => titleCollator.compare(a, b));
+}
+
+function renderCategoryKindPickers() {
+  for (const picker of refs.categoryKindPickers) {
+    const options = picker.querySelector("[data-kind-options]");
+    const input = picker.querySelector('input[name="kind"]');
+    const newInput = picker.querySelector("[data-kind-new]");
+    options.replaceChildren();
+
+    for (const kind of categoryKindChoices()) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "category-kind-option";
+      option.dataset.kind = kind;
+      option.dataset.kindOption = "";
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(input.value === kind));
+      option.textContent = kind;
+      options.append(option);
+    }
+
+    if (newInput) newInput.value = "";
+    syncCategoryKindPicker(picker);
+  }
+}
+
+function toggleCategoryKindMenu(picker) {
+  if (!picker || picker.classList.contains("is-disabled")) return;
+  const menu = picker.querySelector("[data-kind-menu]");
+  const willOpen = menu.hidden;
+  closeCategoryKindMenus(picker);
+  menu.hidden = !willOpen;
+  picker.querySelector("[data-kind-trigger]").setAttribute("aria-expanded", String(willOpen));
+}
+
+function closeCategoryKindMenus(except = null) {
+  for (const picker of refs.categoryKindPickers) {
+    if (picker === except) continue;
+    picker.querySelector("[data-kind-menu]").hidden = true;
+    picker.querySelector("[data-kind-trigger]").setAttribute("aria-expanded", "false");
+  }
+}
+
+function setCategoryKindValue(picker, value, { keepNewInput = false } = {}) {
+  if (!picker || !String(value || "").trim()) return;
+  const input = picker.querySelector('input[name="kind"]');
+  input.value = String(value).trim();
+  if (input.id === "categoryKind" && state.schemaCanCreateCategory && state.draftCategory) {
+    state.draftCategory.kind = input.value;
+  }
+  if (!keepNewInput) picker.querySelector("[data-kind-new]").value = "";
+  syncCategoryKindPicker(picker);
+  if (!keepNewInput) closeCategoryKindMenus();
+}
+
+function syncCategoryKindPicker(picker) {
+  const input = picker.querySelector('input[name="kind"]');
+  const trigger = picker.querySelector("[data-kind-trigger]");
+  const value = input.value || "custom";
+  trigger.textContent = value;
+  for (const option of picker.querySelectorAll("[data-kind-option]")) {
+    option.setAttribute("aria-selected", String(option.dataset.kind === value));
+  }
+}
+
+function setCategoryKindPickerDisabled(picker, isDisabled) {
+  picker.classList.toggle("is-disabled", isDisabled);
+  picker.querySelector("[data-kind-trigger]").disabled = isDisabled;
+  picker.querySelector("[data-kind-new]").disabled = isDisabled;
+  if (isDisabled) closeCategoryKindMenus();
 }
 
 function itemMatchesQuery(item, query) {
@@ -1249,6 +1473,7 @@ function exposeAgentApi() {
     addCategory: (name) => state.catalog.addCategory(name),
     updateCategory: (categoryId, categoryDraft) => state.catalog.updateCategory(categoryId, categoryDraft),
     deleteCategory: (categoryId) => state.catalog.deleteCategory(categoryId),
+    setCategorySort: (categoryId, sortMode) => state.catalog.setCategorySort(categoryId, sortMode),
     addField: (categoryId, fieldDraft) => state.catalog.addField(categoryId, fieldDraft),
     updateField: (categoryId, fieldId, fieldDraft) => state.catalog.updateField(categoryId, fieldId, fieldDraft),
     moveField: (categoryId, fieldId, targetIndex) => state.catalog.moveField(categoryId, fieldId, targetIndex),

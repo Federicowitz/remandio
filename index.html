@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=27" />
+    <link rel="stylesheet" href="./src/styles.css?v=31" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -111,6 +111,24 @@
               <p id="itemsSummary">0 elementi</p>
             </div>
             <div class="category-actions">
+              <div id="itemSortToolbar" class="sort-toolbar" role="group" aria-label="Ordina elementi">
+                <button type="button" class="sort-icon-button" data-sort-group="title" aria-label="Ordine alfabetico">
+                  <span class="sort-symbol">A</span>
+                  <span class="sort-arrow" aria-hidden="true">-</span>
+                </button>
+                <button type="button" class="sort-icon-button" data-sort-group="status" aria-label="Completati">
+                  <span class="sort-symbol">ok</span>
+                  <span class="sort-arrow" aria-hidden="true">-</span>
+                </button>
+                <button type="button" class="sort-icon-button" data-sort-group="rating" aria-label="Voto">
+                  <span class="sort-symbol">9</span>
+                  <span class="sort-arrow" aria-hidden="true">-</span>
+                </button>
+                <button type="button" class="sort-icon-button" data-sort-group="latest" aria-label="Latest">
+                  <span class="sort-symbol">L</span>
+                  <span class="sort-arrow" aria-hidden="true">-</span>
+                </button>
+              </div>
               <button type="button" id="editCategoryButton" class="icon-button settings-button" aria-label="Modifica campi">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
@@ -161,6 +179,22 @@
                   Tag categoria
                   <input id="editCategoryTag" name="tag" type="text" maxlength="8" placeholder="film, tv, book..." required />
                 </label>
+                <label>
+                  Famiglia categoria
+                  <span class="category-kind-picker" data-kind-picker>
+                    <input id="editCategoryKind" name="kind" type="hidden" required />
+                    <button type="button" class="category-kind-trigger" data-kind-trigger aria-haspopup="listbox" aria-expanded="false">
+                      custom
+                    </button>
+                    <span class="category-kind-menu" data-kind-menu hidden>
+                      <span class="category-kind-options" data-kind-options role="listbox"></span>
+                      <span class="category-kind-new">
+                        <span>Nuova famiglia</span>
+                        <input data-kind-new type="text" placeholder="Scrivi famiglia..." />
+                      </span>
+                    </span>
+                  </span>
+                </label>
                 <div class="danger-save-row">
                   <button type="button" id="deleteCategoryButton" class="trash-button" aria-label="Elimina categoria">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -179,6 +213,19 @@
                 <div class="category-create-grid">
                   <input id="categoryName" name="name" type="text" placeholder="Nome" required />
                   <input id="categoryTag" name="tag" type="text" maxlength="8" placeholder="Tag" required />
+                  <span class="category-kind-picker" data-kind-picker>
+                    <input id="categoryKind" name="kind" type="hidden" value="custom" required />
+                    <button type="button" class="category-kind-trigger" data-kind-trigger aria-haspopup="listbox" aria-expanded="false">
+                      custom
+                    </button>
+                    <span class="category-kind-menu" data-kind-menu hidden>
+                      <span class="category-kind-options" data-kind-options role="listbox"></span>
+                      <span class="category-kind-new">
+                        <span>Nuova famiglia</span>
+                        <input data-kind-new type="text" placeholder="Scrivi famiglia..." />
+                      </span>
+                    </span>
+                  </span>
                   <button type="submit" class="icon-button" aria-label="Aggiungi categoria">+</button>
                 </div>
               </form>
@@ -261,6 +308,6 @@
       </form>
     </dialog>
 
-    <script type="module" src="./src/app.js?v=20"></script>
+    <script type="module" src="./src/app.js?v=24"></script>
   </body>
 </html>
