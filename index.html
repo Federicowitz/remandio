@@ -8,7 +8,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=25" />
+    <link rel="stylesheet" href="./src/styles.css?v=27" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -71,8 +71,7 @@
 
                 <div class="settings-group settings-group-feature" aria-label="Import da liste">
                   <p class="settings-kicker">Nuova feature</p>
-                  <button type="button" id="movieListImportButton" class="settings-action strong">Importa film da liste</button>
-                  <p class="settings-note">Incolla una lista testuale: ogni riga e un film, con voto finale opzionale.</p>
+                  <button type="button" id="movieListImportButton" class="settings-action strong">Importa elementi da liste</button>
                 </div>
               </div>
             </div>
@@ -235,7 +234,7 @@
       <form id="movieListImportForm" class="stacked-form movie-import-form" method="dialog">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Import film</p>
+            <p class="eyebrow">Import elementi</p>
             <h2 id="movieListImportTitle">Importa da lista testuale</h2>
           </div>
           <button type="button" id="movieListImportClose" class="icon-button quiet" aria-label="Chiudi">x</button>
@@ -257,7 +256,7 @@
         <p id="movieListPreview" class="import-preview" aria-live="polite"></p>
         <div class="form-actions">
           <button type="button" id="movieListImportCancel" class="ghost-button full">Annulla</button>
-          <button type="submit" class="primary-button full">Importa film</button>
+          <button type="submit" class="primary-button full">Importa elementi</button>
         </div>
       </form>
     </dialog>

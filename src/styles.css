@@ -523,7 +523,7 @@ textarea:focus-visible {
   border-color: var(--line);
   background: var(--accent);
   color: var(--bg);
-  box-shadow: var(--glass-top), var(--button-shadow);
+  box-shadow: var(--button-shadow);
 }
 
 .settings-kicker,
@@ -1142,13 +1142,13 @@ output {
 
 .primary-button {
   background: var(--accent);
-  box-shadow: var(--glass-top), var(--button-shadow);
+  box-shadow: var(--button-shadow);
   color: var(--bg);
   padding: 0 18px;
 }
 
 .primary-button:hover {
-  box-shadow: var(--glass-top), var(--shadow-card);
+  box-shadow: var(--shadow-card);
   transform: translateY(-1px);
 }
 

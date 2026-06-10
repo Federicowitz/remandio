@@ -110,7 +110,7 @@ function movieListImportDialogMarkup() {
     <form id="movieListImportForm" class="stacked-form movie-import-form" method="dialog">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Import film</p>
+          <p class="eyebrow">Import elementi</p>
           <h2 id="movieListImportTitle">Importa da lista testuale</h2>
         </div>
         <button type="button" id="movieListImportClose" class="icon-button quiet" aria-label="Chiudi">x</button>
@@ -132,7 +132,7 @@ function movieListImportDialogMarkup() {
       <p id="movieListPreview" class="import-preview" aria-live="polite"></p>
       <div class="form-actions">
         <button type="button" id="movieListImportCancel" class="ghost-button full">Annulla</button>
-        <button type="submit" class="primary-button full">Importa film</button>
+        <button type="submit" class="primary-button full">Importa</button>
       </div>
     </form>
   `;
@@ -1169,7 +1169,7 @@ async function submitMovieListImport(event) {
 
 function renderMovieListImportPreview(parsed = parseMovieListText(refs.movieListText.value)) {
   if (!refs.movieListText.value.trim()) {
-    refs.movieListPreview.textContent = "Incolla una riga per film. Il voto finale e opzionale.";
+    refs.movieListPreview.textContent = "Incolla una riga per elemento. Il voto finale e opzionale.";
     return;
   }
 
