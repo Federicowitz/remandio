@@ -299,6 +299,12 @@ export async function createCatalog() {
       vault = await saveVault(result.vault);
       subscribers.forEach((subscriber) => subscriber(getSnapshot()));
       return { vault: getSnapshot(), report: result.report };
+    },
+    async importMovieList({ categoryId = null, entries = [] }) {
+      const result = importMovieEntries(vault, categoryId, entries);
+      vault = await saveVault(result.vault);
+      subscribers.forEach((subscriber) => subscriber(getSnapshot()));
+      return { vault: getSnapshot(), report: result.report };
     }
   };
 }
@@ -419,6 +425,183 @@ function mergeFields(targetCategory, sourceCategory) {
       id: makeUniqueId(field.id || field.label, usedFieldIds)
     });
   }
+}
+
+function importMovieEntries(currentVault, categoryId, entries) {
+  const movieEntries = normalizeMovieEntries(entries);
+  const current = normalizeVault(currentVault);
+  const now = new Date().toISOString();
+  const usedCategoryIds = new Set(current.categories.map((category) => category.id));
+  const categories = structuredClone(current.categories);
+  const items = structuredClone(current.items);
+  const report = {
+    categoryCreated: false,
+    categoryId: categoryId || null,
+    categoryName: "",
+    itemsAdded: 0,
+    duplicatesFlagged: 0
+  };
+
+  let targetCategory = categoryId ? categories.find((category) => category.id === categoryId) : null;
+
+  if (!targetCategory) {
+    targetCategory = createTemporaryMovieCategory(categories, usedCategoryIds);
+    categories.push(targetCategory);
+    report.categoryCreated = true;
+  }
+
+  const ratingField = ensureMovieRatingField(targetCategory);
+  report.categoryId = targetCategory.id;
+  report.categoryName = targetCategory.name;
+
+  let duplicateCategory = categories.find((category) => category.id === "duplicates-review");
+
+  for (const entry of movieEntries) {
+    const duplicate = items
+      .filter((item) => item.categoryId === targetCategory.id)
+      .map((item) => ({ item, score: titleSimilarity(item.title, entry.title) }))
+      .sort((a, b) => b.score - a.score)[0];
+
+    if (duplicate?.score >= 0.98) {
+      if (!duplicateCategory) {
+        duplicateCategory = createDuplicateCategory();
+        categories.push(duplicateCategory);
+      }
+
+      items.unshift({
+        id: crypto.randomUUID(),
+        categoryId: duplicateCategory.id,
+        title: entry.title,
+        status: "planned",
+        createdAt: now,
+        updatedAt: now,
+        values: {
+          originalCategory: targetCategory.name,
+          matchedTitle: duplicate.item.title,
+          matchScore: Math.round(duplicate.score * 100),
+          sourceValues: JSON.stringify(importedMovieSourceValues(ratingField, entry), null, 2),
+          notes: "Import bloccato in revisione: titolo molto simile a una card esistente."
+        }
+      });
+      report.duplicatesFlagged += 1;
+      continue;
+    }
+
+    items.unshift({
+      id: crypto.randomUUID(),
+      categoryId: targetCategory.id,
+      title: entry.title,
+      status: "done",
+      createdAt: now,
+      updatedAt: now,
+      values: valuesForImportedMovie(targetCategory, ratingField, entry.rating)
+    });
+    report.itemsAdded += 1;
+  }
+
+  return {
+    report,
+    vault: {
+      ...current,
+      updatedAt: now,
+      preferences: {
+        ...current.preferences,
+        activeCategoryId: targetCategory.id,
+        activeView: "category"
+      },
+      categories,
+      items
+    }
+  };
+}
+
+function normalizeMovieEntries(entries) {
+  if (!Array.isArray(entries)) {
+    throw new Error("La lista film non e valida.");
+  }
+
+  const normalized = entries.map((entry, index) => {
+    const title = String(entry?.title || "").trim();
+    const hasRating = entry?.rating !== null && entry?.rating !== undefined && entry?.rating !== "";
+    const rating = hasRating ? Number(entry.rating) : null;
+    if (!title) {
+      throw new Error(`Titolo mancante alla riga ${index + 1}.`);
+    }
+    if (rating !== null && (!Number.isFinite(rating) || rating < 0 || rating > 10)) {
+      throw new Error(`Voto non valido alla riga ${index + 1}.`);
+    }
+    return { title, rating };
+  });
+
+  if (!normalized.length) {
+    throw new Error("Nessun film valido da importare.");
+  }
+
+  return normalized;
+}
+
+function createTemporaryMovieCategory(existingCategories, usedCategoryIds) {
+  const stamp = new Intl.DateTimeFormat("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(new Date());
+  const baseName = `Import film temporaneo ${stamp}`;
+  let name = baseName;
+  let index = 2;
+  while (existingCategories.some((category) => textKey(category.name) === textKey(name))) {
+    name = `${baseName} ${index}`;
+    index += 1;
+  }
+
+  const category = createCategory({
+    name,
+    tag: "tmp"
+  });
+  return {
+    ...category,
+    id: makeUniqueId(category.id, usedCategoryIds),
+    kind: "media"
+  };
+}
+
+function ensureMovieRatingField(category) {
+  const existing = category.fields.find((field) => field.type === "rating");
+  if (existing) return existing;
+
+  const usedFieldIds = new Set(category.fields.map((field) => field.id));
+  const hasValutazione = category.fields.some((field) => textKey(field.label) === textKey("Valutazione"));
+  const field = {
+    id: makeUniqueId("rating", usedFieldIds),
+    label: hasValutazione ? "Voto import" : "Valutazione",
+    type: "rating",
+    min: 0,
+    max: 10,
+    step: 0.1,
+    custom: true
+  };
+  category.fields = [...category.fields, field];
+  return field;
+}
+
+function valuesForImportedMovie(category, ratingField, rating) {
+  const values = {};
+  for (const field of category.fields) {
+    values[field.id] = field.type === "tags" ? [] : "";
+  }
+  if (rating !== null && rating !== undefined) {
+    values[ratingField.id] = rating;
+  }
+  return values;
+}
+
+function importedMovieSourceValues(ratingField, entry) {
+  if (entry.rating === null || entry.rating === undefined) {
+    return {};
+  }
+  return { [ratingField.id]: entry.rating };
 }
 
 function finiteNumber(value, fallback) {

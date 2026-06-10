@@ -1,4 +1,4 @@
-import { createCatalog } from "./lib/catalog.js?v=15";
+import { createCatalog } from "./lib/catalog.js?v=17";
 import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=14";
 
 const refs = {
@@ -15,6 +15,13 @@ const refs = {
   exportButton: document.querySelector("#exportButton"),
   importFile: document.querySelector("#importFile"),
   movieListImportButton: document.querySelector("#movieListImportButton"),
+  movieListImportDialog: document.querySelector("#movieListImportDialog"),
+  movieListImportForm: document.querySelector("#movieListImportForm"),
+  movieListImportClose: document.querySelector("#movieListImportClose"),
+  movieListImportCancel: document.querySelector("#movieListImportCancel"),
+  movieListCategory: document.querySelector("#movieListCategory"),
+  movieListText: document.querySelector("#movieListText"),
+  movieListPreview: document.querySelector("#movieListPreview"),
   searchInput: document.querySelector("#searchInput"),
   newItemButton: document.querySelector("#newItemButton"),
   newCategoryItemButton: document.querySelector("#newCategoryItemButton"),
@@ -60,6 +67,7 @@ boot();
 
 async function boot() {
   mountSettingsPanelOverlay();
+  mountMovieListImportDialog();
   state.catalog = await createCatalog();
   state.vault = state.catalog.getSnapshot();
   state.catalog.subscribe((vault) => {
@@ -76,6 +84,58 @@ async function boot() {
 function mountSettingsPanelOverlay() {
   if (refs.settingsPanel.parentElement === document.body) return;
   document.body.append(refs.settingsPanel);
+}
+
+function mountMovieListImportDialog() {
+  if (!refs.movieListImportDialog) {
+    const dialog = document.createElement("dialog");
+    dialog.id = "movieListImportDialog";
+    dialog.className = "modal-dialog";
+    dialog.setAttribute("aria-labelledby", "movieListImportTitle");
+    dialog.innerHTML = movieListImportDialogMarkup();
+    document.body.append(dialog);
+  }
+
+  refs.movieListImportDialog = document.querySelector("#movieListImportDialog");
+  refs.movieListImportForm = document.querySelector("#movieListImportForm");
+  refs.movieListImportClose = document.querySelector("#movieListImportClose");
+  refs.movieListImportCancel = document.querySelector("#movieListImportCancel");
+  refs.movieListCategory = document.querySelector("#movieListCategory");
+  refs.movieListText = document.querySelector("#movieListText");
+  refs.movieListPreview = document.querySelector("#movieListPreview");
+}
+
+function movieListImportDialogMarkup() {
+  return `
+    <form id="movieListImportForm" class="stacked-form movie-import-form" method="dialog">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Import film</p>
+          <h2 id="movieListImportTitle">Importa da lista testuale</h2>
+        </div>
+        <button type="button" id="movieListImportClose" class="icon-button quiet" aria-label="Chiudi">x</button>
+      </div>
+      <label>
+        Lista di destinazione
+        <select id="movieListCategory" name="categoryId"></select>
+      </label>
+      <label>
+        Testo da importare
+        <textarea
+          id="movieListText"
+          name="movieListText"
+          rows="10"
+          placeholder="Ocean's 11 5.6&#10;Her&#10;Qualcuno volo sul nido del cuculo 8.7"
+          required
+        ></textarea>
+      </label>
+      <p id="movieListPreview" class="import-preview" aria-live="polite"></p>
+      <div class="form-actions">
+        <button type="button" id="movieListImportCancel" class="ghost-button full">Annulla</button>
+        <button type="submit" class="primary-button full">Importa film</button>
+      </div>
+    </form>
+  `;
 }
 
 function wireEvents() {
@@ -202,9 +262,11 @@ function wireEvents() {
     }
   });
 
-  refs.movieListImportButton.addEventListener("click", () => {
-    alert("Qui aggiungeremo il flusso per importare film da liste gia create.");
-  });
+  refs.movieListImportButton.addEventListener("click", openMovieListImportDialog);
+  refs.movieListImportClose.addEventListener("click", () => refs.movieListImportDialog.close());
+  refs.movieListImportCancel.addEventListener("click", () => refs.movieListImportDialog.close());
+  refs.movieListText.addEventListener("input", renderMovieListImportPreview);
+  refs.movieListImportForm.addEventListener("submit", submitMovieListImport);
 
   refs.fieldForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1055,6 +1117,125 @@ function importReportText(report) {
   ].join("\n");
 }
 
+function openMovieListImportDialog() {
+  refs.movieListImportForm.reset();
+  renderMovieListCategoryOptions();
+  renderMovieListImportPreview();
+  closeSettingsPanel();
+  refs.movieListImportDialog.showModal();
+  refs.movieListText.focus();
+}
+
+function renderMovieListCategoryOptions() {
+  refs.movieListCategory.replaceChildren();
+
+  const temporaryOption = document.createElement("option");
+  temporaryOption.value = "";
+  temporaryOption.textContent = "Crea lista temporanea";
+  refs.movieListCategory.append(temporaryOption);
+
+  for (const category of state.vault.categories) {
+    if (category.kind === "review") continue;
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    refs.movieListCategory.append(option);
+  }
+}
+
+async function submitMovieListImport(event) {
+  event.preventDefault();
+  const parsed = parseMovieListText(refs.movieListText.value);
+
+  if (parsed.errors.length || !parsed.entries.length) {
+    renderMovieListImportPreview(parsed);
+    return;
+  }
+
+  try {
+    const { report } = await state.catalog.importMovieList({
+      categoryId: refs.movieListCategory.value || null,
+      entries: parsed.entries
+    });
+    state.editingId = null;
+    state.formCategoryId = report.categoryId;
+    await setView("category");
+    refs.movieListImportDialog.close();
+    alert(movieListImportReportText(report));
+  } catch (error) {
+    refs.movieListPreview.textContent = error.message;
+  }
+}
+
+function renderMovieListImportPreview(parsed = parseMovieListText(refs.movieListText.value)) {
+  if (!refs.movieListText.value.trim()) {
+    refs.movieListPreview.textContent = "Incolla una riga per film. Il voto finale e opzionale.";
+    return;
+  }
+
+  const lines = [];
+  if (parsed.entries.length) {
+    lines.push(`${parsed.entries.length} ${parsed.entries.length === 1 ? "film pronto" : "film pronti"} per l'import.`);
+  }
+  if (parsed.skippedHeaders.length) {
+    lines.push("Intestazione ignorata.");
+  }
+  if (parsed.errors.length) {
+    lines.push("Correggi prima queste righe:");
+    lines.push(...parsed.errors.slice(0, 4));
+    if (parsed.errors.length > 4) lines.push(`Altri ${parsed.errors.length - 4} errori non mostrati.`);
+  }
+
+  refs.movieListPreview.textContent = lines.join("\n") || "Nessun film valido trovato.";
+}
+
+function parseMovieListText(text) {
+  const entries = [];
+  const errors = [];
+  const skippedHeaders = [];
+  const lines = String(text || "").split(/\r?\n/);
+
+  lines.forEach((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    const match = line.match(/^(.+?)\s+([0-9]+(?:[,.][0-9]+)?)$/);
+    if (!match) {
+      if (!entries.length && /(voto|rating|valutazione|score)/i.test(line)) {
+        skippedHeaders.push(index + 1);
+        return;
+      }
+      entries.push({ title: line, rating: null });
+      return;
+    }
+
+    const title = match[1].trim();
+    const rawRating = match[2];
+    const rating = Number(rawRating.replace(",", "."));
+    if (!title) {
+      errors.push(`Riga ${index + 1}: titolo mancante.`);
+      return;
+    }
+    if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
+      entries.push({ title: line, rating: null });
+      return;
+    }
+
+    entries.push({ title, rating });
+  });
+
+  return { entries, errors, skippedHeaders };
+}
+
+function movieListImportReportText(report) {
+  return [
+    "Import film completato.",
+    `${report.itemsAdded} card aggiunte in "${report.categoryName}".`,
+    report.categoryCreated ? "E stata creata una lista temporanea." : "Import nella lista selezionata.",
+    `${report.duplicatesFlagged} possibili duplicati spostati in revisione.`
+  ].join("\n");
+}
+
 function applyTheme() {
   document.documentElement.dataset.theme = state.vault.preferences.theme;
 }
@@ -1076,7 +1257,8 @@ function exposeAgentApi() {
     setItemDone: (itemId, done) => state.catalog.setItemDone(itemId, done),
     deleteItem: (itemId) => state.catalog.deleteItem(itemId),
     exportJson: () => state.catalog.exportJson(),
-    importJson: (jsonText) => state.catalog.importJson(jsonText)
+    importJson: (jsonText) => state.catalog.importJson(jsonText),
+    importMovieList: (payload) => state.catalog.importMovieList(payload)
   };
 }
 
