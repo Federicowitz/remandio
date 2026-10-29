@@ -105,6 +105,7 @@ export function normalizeVault(input) {
   if (!vault.preferences.categorySorts || typeof vault.preferences.categorySorts !== "object" || Array.isArray(vault.preferences.categorySorts)) {
     vault.preferences.categorySorts = {};
   }
+  if (!["system", "light", "dark"].includes(vault.preferences.theme)) vault.preferences.theme = "system";
 
   vault.categories = vault.categories.map((category) => ({
     id: safeId(category.id || category.name || "category"),
@@ -281,16 +282,17 @@ export function averageRating(category, item) {
   const scores = category.fields
     .filter((field) => field.type === "rating")
     .map((field) => {
+      if (item.values[field.id] === "" || item.values[field.id] == null) return null;
       const raw = Number(item.values[field.id]);
-      const min = Number(field.min || 0);
-      const max = Number(field.max || 10);
+      const min = Number(field.min ?? 0);
+      const max = Number(field.max ?? 10);
       const range = max - min;
       if (!Number.isFinite(raw) || !Number.isFinite(min) || !Number.isFinite(max) || range <= 0) return null;
       return ((raw - min) / range) * 10;
     })
     .filter((score) => score !== null);
 
-  const fallbackScores = scores.length ? scores : fallbackRatingScores(item);
+  const fallbackScores = category.fields.some((field) => field.type === "rating") ? scores : fallbackRatingScores(item);
   if (!fallbackScores.length) return null;
   return fallbackScores.reduce((sum, score) => sum + score, 0) / fallbackScores.length;
 }

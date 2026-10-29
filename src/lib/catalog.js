@@ -11,17 +11,17 @@ import {
   textKey,
   titleSimilarity,
   validateItem
-} from "./schema.js?v=17";
-import { exportVault, loadVault, saveVault } from "./storage.js?v=17";
+} from "./schema.js?v=19";
+import { exportVault, loadVault, saveVault } from "./storage.js?v=19";
 
 const CATEGORY_NAME_MAX_LENGTH = 32;
 
-export async function createCatalog() {
-  let vault = await loadVault();
+export async function createCatalog(storage = { loadVault, saveVault, exportVault }) {
+  let vault = await storage.loadVault();
   const subscribers = new Set();
 
   async function persist(nextVault = vault) {
-    vault = await saveVault(nextVault);
+    vault = await storage.saveVault(nextVault);
     subscribers.forEach((subscriber) => subscriber(getSnapshot()));
     return getSnapshot();
   }
@@ -31,10 +31,10 @@ export async function createCatalog() {
   }
 
   function getActiveCategory() {
-    return vault.categories.find((category) => category.id === vault.preferences.activeCategoryId) ?? vault.categories[0];
+    return structuredClone(vault.categories.find((category) => category.id === vault.preferences.activeCategoryId) ?? vault.categories[0]);
   }
 
-  return {
+  const api = {
     getSnapshot,
     getActiveCategory,
     subscribe(callback) {
@@ -266,6 +266,14 @@ export async function createCatalog() {
       });
     },
     async upsertItem(categoryId, formValues, existingId = null) {
+      const category = vault.categories.find((candidate) => candidate.id === categoryId);
+      if (!category) throw new Error("Categoria non trovata.");
+      const previous = vault.items.find((candidate) => candidate.id === existingId);
+      const rated = category.fields.some((field) => field.type === "rating"
+        && formValues.values?.[field.id] !== "" && formValues.values?.[field.id] != null
+        && Number.isFinite(Number(formValues.values[field.id]))
+        && formValues.values[field.id] !== previous?.values[field.id]);
+      if (rated) formValues = { ...formValues, status: "done" };
       const item = existingId
         ? updateItem(vault.items.find((candidate) => candidate.id === existingId), categoryId, formValues)
         : createItem(categoryId, formValues);
@@ -303,26 +311,37 @@ export async function createCatalog() {
       });
     },
     async replaceVault(nextVault) {
-      vault = normalizeVault(nextVault);
-      return persist(vault);
+      return persist(normalizeVault(nextVault));
     },
     async exportJson() {
-      return exportVault(vault);
+      return storage.exportVault(vault);
     },
     async importJson(jsonText) {
-      const incoming = normalizeVault(JSON.parse(jsonText));
-      const result = mergeVaults(vault, incoming);
-      vault = await saveVault(result.vault);
+      const parsed = JSON.parse(jsonText);
+      const incoming = normalizeVault(parsed);
+      const result = mergeVaults(vault, incoming, parsed.preferences ?? {});
+      vault = await storage.saveVault(result.vault);
       subscribers.forEach((subscriber) => subscriber(getSnapshot()));
       return { vault: getSnapshot(), report: result.report };
     },
     async importMovieList({ categoryId = null, entries = [] }) {
       const result = importMovieEntries(vault, categoryId, entries);
-      vault = await saveVault(result.vault);
+      vault = await storage.saveVault(result.vault);
       subscribers.forEach((subscriber) => subscriber(getSnapshot()));
       return { vault: getSnapshot(), report: result.report };
     }
   };
+
+  // Build each mutation from the latest committed snapshot, including imports.
+  let pending = Promise.resolve();
+  const immediate = new Set(["getSnapshot", "getActiveCategory", "subscribe"]);
+  return Object.fromEntries(Object.entries(api).map(([name, method]) => [name,
+    immediate.has(name) ? method : (...args) => {
+      const result = pending.then(() => method(...args));
+      pending = result.catch(() => {});
+      return result;
+    }
+  ]));
 }
 
 function updateItem(existing, categoryId, formValues) {
@@ -340,7 +359,7 @@ function updateItem(existing, categoryId, formValues) {
   };
 }
 
-function mergeVaults(currentVault, incomingVault) {
+function mergeVaults(currentVault, incomingVault, importedPreferences) {
   const current = normalizeVault(currentVault);
   const incoming = normalizeVault(incomingVault);
   const now = new Date().toISOString();
@@ -348,6 +367,7 @@ function mergeVaults(currentVault, incomingVault) {
   const categories = structuredClone(current.categories);
   const items = structuredClone(current.items);
   const categoryMap = new Map();
+  const fieldMaps = new Map();
   const report = {
     categoriesMerged: 0,
     categoriesAdded: 0,
@@ -359,7 +379,13 @@ function mergeVaults(currentVault, incomingVault) {
     const existing = categories.find((category) => textKey(category.name) === textKey(incomingCategory.name));
     if (existing) {
       categoryMap.set(incomingCategory.id, existing.id);
-      mergeFields(existing, incomingCategory);
+      fieldMaps.set(incomingCategory.id, mergeFields(existing, incomingCategory, items));
+      Object.assign(existing, {
+        name: incomingCategory.name,
+        tag: incomingCategory.tag,
+        kind: incomingCategory.kind,
+        color: incomingCategory.color
+      });
       report.categoriesMerged += 1;
       continue;
     }
@@ -369,6 +395,7 @@ function mergeVaults(currentVault, incomingVault) {
       id: makeUniqueId(incomingCategory.id || incomingCategory.name, usedCategoryIds)
     };
     categoryMap.set(incomingCategory.id, nextCategory.id);
+    fieldMaps.set(incomingCategory.id, new Map(nextCategory.fields.map((field) => [field.id, field.id])));
     categories.push(nextCategory);
     report.categoriesAdded += 1;
   }
@@ -380,6 +407,8 @@ function mergeVaults(currentVault, incomingVault) {
     if (!categoryId) continue;
 
     const category = categories.find((candidate) => candidate.id === categoryId);
+    const fieldMap = fieldMaps.get(incomingItem.categoryId);
+    const values = Object.fromEntries(Object.entries(incomingItem.values).map(([id, value]) => [fieldMap.get(id) ?? id, value]));
     const duplicate = items
       .filter((item) => item.categoryId === categoryId)
       .map((item) => ({ item, score: titleSimilarity(item.title, incomingItem.title) }))
@@ -412,6 +441,7 @@ function mergeVaults(currentVault, incomingVault) {
 
     items.unshift({
       ...incomingItem,
+      values,
       id: crypto.randomUUID(),
       categoryId,
       createdAt: incomingItem.createdAt || now,
@@ -425,22 +455,56 @@ function mergeVaults(currentVault, incomingVault) {
     vault: {
       ...current,
       updatedAt: now,
+      preferences: {
+        ...current.preferences,
+        ...importedPreferences,
+        activeCategoryId: categoryMap.get(importedPreferences.activeCategoryId) ?? current.preferences.activeCategoryId,
+        activeView: importedPreferences.activeView === undefined
+          ? current.preferences.activeView
+          : importedPreferences.activeView === "category" ? "category" : "library",
+        categorySorts: {
+          ...current.preferences.categorySorts,
+          ...Object.fromEntries(Object.entries(incoming.preferences.categorySorts)
+            .filter(([id]) => categoryMap.has(id))
+            .map(([id, mode]) => [categoryMap.get(id), normalizeSortMode(mode)]))
+        }
+      },
       categories,
       items
     }
   };
 }
 
-function mergeFields(targetCategory, sourceCategory) {
+function mergeFields(targetCategory, sourceCategory, items) {
   const usedFieldIds = new Set(targetCategory.fields.map((field) => field.id));
+  const fieldMap = new Map();
   for (const field of sourceCategory.fields) {
     const existing = targetCategory.fields.find((candidate) => textKey(candidate.label) === textKey(field.label));
-    if (existing) continue;
-    targetCategory.fields.push({
+    if (existing) {
+      fieldMap.set(field.id, existing.id);
+      if (existing.type === field.type) {
+        const updated = { ...field, id: existing.id };
+        if (field.type === "rating" && (existing.min !== field.min || existing.max !== field.max)) {
+          const rescaled = rescaleRatingValues(items, targetCategory.id, existing, { ...updated, step: 0 });
+          rescaled.forEach((item, index) => { items[index] = item; });
+        }
+        Object.assign(existing, updated);
+      } else {
+        // Different types with the same label need separate fields to retain both values.
+        const added = { ...field, id: makeUniqueId(field.id, usedFieldIds), label: `${field.label} (import)` };
+        targetCategory.fields.push(added);
+        fieldMap.set(field.id, added.id);
+      }
+      continue;
+    }
+    const added = {
       ...field,
       id: makeUniqueId(field.id || field.label, usedFieldIds)
-    });
+    };
+    targetCategory.fields.push(added);
+    fieldMap.set(field.id, added.id);
   }
+  return fieldMap;
 }
 
 function normalizeSortMode(sortMode) {

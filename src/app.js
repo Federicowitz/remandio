@@ -1,5 +1,6 @@
-import { createCatalog } from "./lib/catalog.js?v=22";
-import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=17";
+import { createCatalog } from "./lib/catalog.js?v=25";
+import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=19";
+import { parseMovieListText } from "./lib/import-text.js?v=1";
 
 const refs = {
   sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
@@ -65,7 +66,9 @@ const state = {
   editingFieldId: null,
   draggingFieldId: null,
   suppressFieldClick: false,
-  pendingScrollItemId: null
+  pendingScrollItemId: null,
+  itemDraft: null,
+  itemDraftValues: {}
 };
 
 const titleCollator = new Intl.Collator("it-IT", { sensitivity: "base", numeric: true });
@@ -82,6 +85,7 @@ async function boot() {
     render();
   });
 
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
   wireEvents();
   exposeAgentApi();
   registerServiceWorker();
@@ -278,7 +282,8 @@ function wireEvents() {
   });
 
   refs.importFile.addEventListener("change", async (event) => {
-    const [file] = event.currentTarget.files;
+    const input = event.currentTarget;
+    const [file] = input.files;
     if (!file) return;
     try {
       const { report } = await state.catalog.importJson(await file.text());
@@ -289,7 +294,7 @@ function wireEvents() {
     } catch (error) {
       alert(error.message);
     } finally {
-      event.currentTarget.value = "";
+      input.value = "";
     }
   });
 
@@ -301,27 +306,29 @@ function wireEvents() {
 
   refs.fieldForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
     try {
       if (state.schemaCanCreateCategory) {
         addDraftField(data);
-        event.currentTarget.reset();
-        event.currentTarget.elements.min.value = 0;
-        event.currentTarget.elements.max.value = 10;
-        event.currentTarget.elements.step.value = 0.5;
+        form.reset();
+        form.elements.min.value = 0;
+        form.elements.max.value = 10;
+        form.elements.step.value = 0.5;
         renderSchema();
         return;
       }
       await state.catalog.addField(activeCategory().id, data);
-      event.currentTarget.reset();
-      event.currentTarget.elements.min.value = 0;
-      event.currentTarget.elements.max.value = 10;
-      event.currentTarget.elements.step.value = 0.5;
+      form.reset();
+      form.elements.min.value = 0;
+      form.elements.max.value = 10;
+      form.elements.step.value = 0.5;
     } catch (error) {
       alert(error.message);
     }
   });
 
+  refs.itemForm.addEventListener("input", captureItemDraft);
   refs.itemForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const categoryId = refs.itemForm.elements.categoryId.value;
@@ -331,6 +338,7 @@ function wireEvents() {
 
     try {
       await state.catalog.upsertItem(category.id, formValues, state.editingId);
+      resetItemDraft();
       state.editingId = null;
       state.formCategoryId = category.id;
       state.pendingScrollItemId = editedItemId;
@@ -347,8 +355,10 @@ function render() {
   renderShell();
   renderCurrentView();
   renderEditorMode();
-  renderForm();
-  renderSchema();
+  if (activeView() === "editor") {
+    if (state.editorMode === "item") renderForm();
+    else renderSchema();
+  }
 }
 
 function renderShell() {
@@ -457,19 +467,23 @@ function renderItems() {
 function renderForm() {
   const editingItem = state.vault.items.find((item) => item.id === state.editingId);
   const category = state.vault.categories.find((candidate) => candidate.id === (state.formCategoryId || editingItem?.categoryId)) ?? activeCategory();
+  const formItem = state.itemDraft ? {
+    ...state.itemDraft,
+    ...(state.itemDraftValues[category.id] ? { categoryId: category.id, values: state.itemDraftValues[category.id] } : {})
+  } : editingItem;
   state.formCategoryId = category.id;
   refs.entryTitle.textContent = editingItem ? "Modifica elemento" : "Aggiungi elemento";
   refs.itemHeaderSubmitButton.textContent = editingItem ? "Salva" : "Aggiungi";
   refs.itemForm.replaceChildren();
 
   refs.itemForm.append(
-    fieldShell("Titolo", inputElement("text", "title", editingItem?.title ?? "", { placeholder: "Titolo" })),
+    fieldShell("Titolo", inputElement("text", "title", formItem?.title ?? "", { placeholder: "Titolo", required: true })),
     fieldShell("Categoria", categorySelect(category.id)),
-    fieldShell("Completato", doneCheckbox(editingItem?.status === "done"))
+    fieldShell("Completato", doneCheckbox(formItem?.status === "done"))
   );
 
   for (const field of category.fields) {
-    const value = fieldValueForForm(field, category, editingItem);
+    const value = fieldValueForForm(field, category, formItem);
     refs.itemForm.append(fieldShell(field.label, controlForField(field, value)));
   }
 
@@ -481,6 +495,7 @@ function renderForm() {
   clear.className = "ghost-button full";
   clear.textContent = "Pulisci";
   clear.addEventListener("click", () => {
+    resetItemDraft();
     state.editingId = null;
     state.formCategoryId = activeCategory().id;
     renderForm();
@@ -925,7 +940,7 @@ function attachSwipeStatus(article, item) {
 }
 
 function detailRow(field, value) {
-  const shown = field.type === "rating" && Number(value) <= 0 ? "" : displayValue(field, value);
+  const shown = displayValue(field, value);
   if (shown === "" || shown === undefined) return "";
   return `<div class="${isWideField(field) ? "meta-wide" : ""}"><dt>${escapeHtml(field.label)}</dt><dd>${escapeHtml(shown)}</dd></div>`;
 }
@@ -935,6 +950,17 @@ function isWideField(field) {
 }
 
 function fieldShell(label, control) {
+  if (control.classList.contains("rating-control")) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "form-field";
+    const caption = document.createElement("label");
+    const range = control.querySelector("input");
+    range.id = `item-rating-${range.name}`;
+    caption.htmlFor = range.id;
+    caption.textContent = label;
+    wrapper.append(caption, control);
+    return wrapper;
+  }
   const wrapper = document.createElement("label");
   wrapper.append(label, control);
   return wrapper;
@@ -960,6 +986,7 @@ function categorySelect(selectedId) {
     select.append(option);
   }
   select.addEventListener("change", () => {
+    captureItemDraft();
     state.formCategoryId = select.value;
     renderForm();
   });
@@ -1007,9 +1034,22 @@ function controlForField(field, value) {
       step: field.step
     });
     const output = document.createElement("output");
-    output.textContent = range.value;
-    range.addEventListener("input", () => {
+    range.dataset.empty = String(value === "" || value == null);
+    range.setAttribute("inputmode", "none");
+    output.textContent = range.dataset.empty === "true" ? "-" : range.value;
+    // Keep touch interaction on the range, outside implicit label activation.
+    range.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch" && document.activeElement !== range) document.activeElement?.blur();
+    });
+    const assignRating = () => {
+      range.dataset.empty = "false";
       output.textContent = range.value;
+      refs.itemForm.elements.isDone.checked = true;
+    };
+    range.addEventListener("input", assignRating);
+    range.addEventListener("pointerup", () => {
+      assignRating();
+      captureItemDraft();
     });
     group.append(range, output);
     return group;
@@ -1034,7 +1074,8 @@ function readItemForm(category) {
   const data = new FormData(refs.itemForm);
   const values = {};
   for (const field of category.fields) {
-    values[field.id] = serializeValue(field, data.get(field.id));
+    const control = refs.itemForm.elements.namedItem(field.id);
+    values[field.id] = field.type === "rating" && control?.dataset.empty === "true" ? "" : serializeValue(field, data.get(field.id));
   }
 
   return {
@@ -1042,6 +1083,18 @@ function readItemForm(category) {
     status: data.get("isDone") === "on" ? "done" : "planned",
     values
   };
+}
+
+function captureItemDraft() {
+  const category = state.vault.categories.find((candidate) => candidate.id === state.formCategoryId);
+  if (!category || !refs.itemForm.elements.title) return;
+  state.itemDraft = { ...readItemForm(category), categoryId: category.id };
+  state.itemDraftValues[category.id] = state.itemDraft.values;
+}
+
+function resetItemDraft() {
+  state.itemDraft = null;
+  state.itemDraftValues = {};
 }
 
 async function setView(view) {
@@ -1087,6 +1140,7 @@ function scrollPendingItemIntoView() {
 }
 
 async function openItemEditor() {
+  resetItemDraft();
   state.editorMode = "item";
   state.schemaCanCreateCategory = false;
   state.draftCategory = null;
@@ -1451,7 +1505,7 @@ async function submitMovieListImport(event) {
 
 function renderMovieListImportPreview(parsed = parseMovieListText(refs.movieListText.value)) {
   if (!refs.movieListText.value.trim()) {
-    refs.movieListPreview.textContent = "Incolla una riga per elemento. Il voto finale e opzionale.";
+    refs.movieListPreview.textContent = "Una riga per elemento. Per il voto usa Titolo; 8 oppure Titolo 8.5.";
     return;
   }
 
@@ -1471,44 +1525,6 @@ function renderMovieListImportPreview(parsed = parseMovieListText(refs.movieList
   refs.movieListPreview.textContent = lines.join("\n") || "Nessun film valido trovato.";
 }
 
-function parseMovieListText(text) {
-  const entries = [];
-  const errors = [];
-  const skippedHeaders = [];
-  const lines = String(text || "").split(/\r?\n/);
-
-  lines.forEach((rawLine, index) => {
-    const line = rawLine.trim();
-    if (!line) return;
-
-    const match = line.match(/^(.+?)\s+([0-9]+(?:[,.][0-9]+)?)$/);
-    if (!match) {
-      if (!entries.length && /(voto|rating|valutazione|score)/i.test(line)) {
-        skippedHeaders.push(index + 1);
-        return;
-      }
-      entries.push({ title: line, rating: null });
-      return;
-    }
-
-    const title = match[1].trim();
-    const rawRating = match[2];
-    const rating = Number(rawRating.replace(",", "."));
-    if (!title) {
-      errors.push(`Riga ${index + 1}: titolo mancante.`);
-      return;
-    }
-    if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
-      entries.push({ title: line, rating: null });
-      return;
-    }
-
-    entries.push({ title, rating });
-  });
-
-  return { entries, errors, skippedHeaders };
-}
-
 function movieListImportReportText(report) {
   return [
     "Import film completato.",
@@ -1519,7 +1535,15 @@ function movieListImportReportText(report) {
 }
 
 function applyTheme() {
-  document.documentElement.dataset.theme = state.vault.preferences.theme;
+  const theme = state.vault.preferences.theme;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.backgroundColor = "";
+  document.documentElement.style.colorScheme = "";
+  try { localStorage.setItem("remandio-theme", theme); } catch {}
+  const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = dark ? "#080706" : "#eeede9";
+  });
 }
 
 function exposeAgentApi() {

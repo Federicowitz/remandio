@@ -1,50 +1,35 @@
-const CACHE_NAME = "remandio-shell-v25";
+const CACHE_NAME = "remandio-shell-v28";
 const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./assets/icon-192.svg",
-  "./assets/icon-512.svg",
-  "./src/styles.css?v=36",
-  "./src/app.js?v=26",
-  "./src/lib/catalog.js?v=22",
-  "./src/lib/schema.js?v=17",
-  "./src/lib/storage.js?v=17"
+  "./", "./index.html", "./manifest.webmanifest",
+  "./assets/icon-192.svg", "./assets/icon-512.svg",
+  "./src/styles.css?v=37", "./src/app.js?v=29",
+  "./src/lib/catalog.js?v=25", "./src/lib/schema.js?v=19",
+  "./src/lib/storage.js?v=19", "./src/lib/import-text.js?v=1"
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => {
-        const oldKeys = keys.filter((key) => key !== CACHE_NAME);
-        return Promise.all(oldKeys.map((key) => caches.delete(key))).then(() => oldKeys.length > 0);
-      })
-      .then((deletedOldCaches) => self.clients.claim().then(() => deletedOldCaches))
-      .then((deletedOldCaches) => {
-        if (!deletedOldCaches) return;
-        return self.clients
-          .matchAll({ type: "window" })
-          .then((clients) => Promise.all(clients.map((client) => client.navigate(client.url))));
-      })
-  );
+  event.waitUntil(caches.keys().then((keys) => Promise.all(
+    keys.filter((key) => key.startsWith("remandio-shell-") && key !== CACHE_NAME)
+      .map((key) => caches.delete(key))
+  )).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
+  const shellUrls = APP_SHELL.map((path) => new URL(path, self.registration.scope).href);
+  if (event.request.mode !== "navigate" && !shellUrls.includes(event.request.url)) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(event.request);
+    if (cached) return cached;
+    if (event.request.mode === "navigate") {
+      const index = await cache.match(new URL("./index.html", self.registration.scope).href);
+      if (index) return index;
+    }
+    return fetch(event.request);
+  })());
 });
