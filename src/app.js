@@ -474,6 +474,7 @@ function renderForm() {
   state.formCategoryId = category.id;
   refs.entryTitle.textContent = editingItem ? "Modifica elemento" : "Aggiungi elemento";
   refs.itemHeaderSubmitButton.textContent = editingItem ? "Salva" : "Aggiungi";
+  refs.itemForm.style.removeProperty("padding-bottom");
   refs.itemForm.replaceChildren();
 
   refs.itemForm.append(
@@ -1037,9 +1038,12 @@ function controlForField(field, value) {
     range.dataset.empty = String(value === "" || value == null);
     range.setAttribute("inputmode", "none");
     output.textContent = range.dataset.empty === "true" ? "-" : range.value;
-    // Keep touch interaction on the range, outside implicit label activation.
     range.addEventListener("pointerdown", (event) => {
-      if (event.pointerType === "touch" && document.activeElement !== range) document.activeElement?.blur();
+      if (event.pointerType !== "touch") return;
+      const focused = document.activeElement;
+      if (!refs.itemForm.contains(focused) || !focused.matches("input[type=text], input[type=number], textarea")) return;
+      keepRatingInPlace(range);
+      focused.blur();
     });
     const assignRating = () => {
       range.dataset.empty = "false";
@@ -1068,6 +1072,34 @@ function controlForField(field, value) {
   return inputElement("text", field.id, displayValue(field, value), {
     placeholder: field.type === "tags" ? "thriller, preferiti, 2026" : field.label
   });
+}
+
+function keepRatingInPlace(range) {
+  const viewport = window.visualViewport;
+  const page = document.scrollingElement;
+  if (!viewport || viewport.scale !== 1 || page.clientHeight - viewport.height < 80) return;
+
+  const top = range.getBoundingClientRect().top - viewport.offsetTop;
+  let frame;
+  const restorePosition = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      if (!range.isConnected || !range.getClientRects().length) return;
+      const targetScroll = window.scrollY + range.getBoundingClientRect().top - viewport.offsetTop - top;
+      const missingSpace = Math.ceil(targetScroll - (page.scrollHeight - page.clientHeight));
+      if (missingSpace > 0) {
+        const currentPadding = parseFloat(getComputedStyle(refs.itemForm).paddingBottom);
+        refs.itemForm.style.paddingBottom = `${currentPadding + missingSpace}px`;
+      }
+      window.scrollTo({ top: targetScroll, behavior: "instant" });
+    });
+  };
+  viewport.addEventListener("resize", restorePosition);
+  viewport.addEventListener("scroll", restorePosition);
+  setTimeout(() => {
+    viewport.removeEventListener("resize", restorePosition);
+    viewport.removeEventListener("scroll", restorePosition);
+  }, 650);
 }
 
 function readItemForm(category) {

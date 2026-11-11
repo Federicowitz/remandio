@@ -20,7 +20,7 @@
     <title>Remandio</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icon-192.svg" />
-    <link rel="stylesheet" href="./src/styles.css?v=38" />
+    <link rel="stylesheet" href="./src/styles.css?v=39" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&amp;family=Archivo:wght@400;500;700;800&amp;display=swap" />
   </head>
   <body>
@@ -228,11 +228,17 @@
                   <button type="submit" class="primary-button full">Salva categoria</button>
                 </div>
               </form>
-              <form class="inline-form" id="categoryForm">
-                <label for="categoryName">Nuova categoria</label>
-                <div class="category-create-grid">
-                  <input id="categoryName" name="name" type="text" maxlength="32" placeholder="Nome" required />
-                  <input id="categoryTag" name="tag" type="text" maxlength="8" placeholder="Tag" required />
+              <form class="stacked-form category-name-form" id="categoryForm">
+                <label>
+                  Nome categoria
+                  <input id="categoryName" name="name" type="text" maxlength="32" required />
+                </label>
+                <label>
+                  Tag categoria
+                  <input id="categoryTag" name="tag" type="text" maxlength="8" placeholder="film, tv, book..." required />
+                </label>
+                <label>
+                  Famiglia categoria
                   <span class="category-kind-picker" data-kind-picker>
                     <input id="categoryKind" name="kind" type="hidden" value="custom" required />
                     <button type="button" class="category-kind-trigger" data-kind-trigger aria-haspopup="listbox" aria-expanded="false">
@@ -246,8 +252,8 @@
                       </span>
                     </span>
                   </span>
-                  <button type="submit" class="icon-button" aria-label="Aggiungi categoria">+</button>
-                </div>
+                </label>
+                <button type="submit" class="primary-button full">Salva categoria</button>
               </form>
               <div id="schemaFields" class="schema-fields"></div>
               <div id="fieldDetail" class="field-detail" hidden></div>
@@ -328,6 +334,6 @@
       </form>
     </dialog>
 
-    <script type="module" src="./src/app.js?v=30"></script>
+    <script type="module" src="./src/app.js?v=31"></script>
   </body>
 </html>
