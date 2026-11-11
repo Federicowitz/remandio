@@ -1,7 +1,7 @@
-const CACHE_NAME = "remandio-shell-v30";
+const CACHE_NAME = "remandio-shell-v31";
 const APP_SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./assets/icon-192.svg", "./assets/icon-512.svg",
+  "./assets/icon-192.svg", "./assets/icon-512.svg", "./assets/apple-touch-icon.png",
   "./src/styles.css?v=39", "./src/app.js?v=31",
   "./src/lib/catalog.js?v=26", "./src/lib/schema.js?v=20",
   "./src/lib/storage.js?v=20", "./src/lib/import-text.js?v=1"
