@@ -52,6 +52,37 @@ test("old snapshots without preferences or rating bounds still import", async ()
   assert.equal(catalog.getSnapshot().preferences.theme, "dark");
 });
 
+test("JSON round trip preserves chronology for cards and duplicates in review", async () => {
+  const incoming = createEmptyVault();
+  const createdAt = "2019-05-12T08:00:00.000Z";
+  const updatedAt = "2020-07-01T15:00:00.000Z";
+  incoming.items = [
+    { categoryId: "films", title: "Dated card", createdAt, updatedAt },
+    { categoryId: "films", title: "Legacy with update", updatedAt },
+    { categoryId: "films", title: "Undated card" }
+  ];
+  const source = await fixture(incoming);
+  await source.catalog.setCategorySort("films", "created-asc");
+
+  const target = await fixture();
+  const json = await source.catalog.exportJson();
+  await target.catalog.importJson(json);
+  await target.catalog.importJson(json);
+  const restored = target.catalog.getSnapshot();
+  const dated = restored.items.filter((item) => item.title === "Dated card");
+  assert.deepEqual(dated.map((item) => item.categoryId).sort(), ["duplicates-review", "films"]);
+  for (const item of dated) {
+    assert.equal(item.createdAt, createdAt);
+    assert.equal(item.updatedAt, updatedAt);
+  }
+  assert.equal(restored.preferences.categorySorts.films, "created-asc");
+  assert.equal(restored.items.find((item) => item.title === "Legacy with update").createdAt, updatedAt);
+
+  const undated = restored.items.find((item) => item.title === "Undated card" && item.categoryId === "films");
+  await target.catalog.upsertItem("films", { title: undated.title, values: {} }, undated.id);
+  assert.equal(JSON.parse(await target.catalog.exportJson()).items.find((item) => item.id === undated.id).createdAt, null);
+});
+
 test("concurrent JSON imports and edits retain all items", async () => {
   const { catalog } = await fixture();
   const incoming = createEmptyVault();

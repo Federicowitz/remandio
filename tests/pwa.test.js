@@ -56,11 +56,11 @@ test("worker does not intercept external traffic", () => {
 });
 
 for (const scenario of [
-  { saved: "dark", systemDark: false, expected: "#080706" },
-  { saved: "light", systemDark: true, expected: "#eeede9" },
-  { saved: null, systemDark: true, expected: "#080706" },
-  { saved: "invalid", systemDark: false, expected: "#eeede9" },
-  { blocked: true, systemDark: true, expected: "#080706" }
+  { saved: "dark", systemDark: false, expected: "#141210" },
+  { saved: "light", systemDark: true, expected: "#f1e8d8" },
+  { saved: null, systemDark: true, expected: "#141210" },
+  { saved: "invalid", systemDark: false, expected: "#f1e8d8" },
+  { blocked: true, systemDark: true, expected: "#141210" }
 ]) {
   test(`theme is set before styles and IndexedDB: ${JSON.stringify(scenario)}`, () => {
     const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/);

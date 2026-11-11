@@ -1,10 +1,10 @@
-const CACHE_NAME = "remandio-shell-v28";
+const CACHE_NAME = "remandio-shell-v29";
 const APP_SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./assets/icon-192.svg", "./assets/icon-512.svg",
-  "./src/styles.css?v=37", "./src/app.js?v=29",
-  "./src/lib/catalog.js?v=25", "./src/lib/schema.js?v=19",
-  "./src/lib/storage.js?v=19", "./src/lib/import-text.js?v=1"
+  "./src/styles.css?v=38", "./src/app.js?v=30",
+  "./src/lib/catalog.js?v=26", "./src/lib/schema.js?v=20",
+  "./src/lib/storage.js?v=20", "./src/lib/import-text.js?v=1"
 ];
 
 self.addEventListener("install", (event) => {

@@ -11,8 +11,8 @@ import {
   textKey,
   titleSimilarity,
   validateItem
-} from "./schema.js?v=19";
-import { exportVault, loadVault, saveVault } from "./storage.js?v=19";
+} from "./schema.js?v=20";
+import { exportVault, loadVault, saveVault } from "./storage.js?v=20";
 
 const CATEGORY_NAME_MAX_LENGTH = 32;
 
@@ -425,8 +425,8 @@ function mergeVaults(currentVault, incomingVault, importedPreferences) {
         categoryId: duplicateCategory.id,
         title: incomingItem.title,
         status: "planned",
-        createdAt: now,
-        updatedAt: now,
+        createdAt: incomingItem.createdAt,
+        updatedAt: incomingItem.updatedAt,
         values: {
           originalCategory: category?.name || categoryId,
           matchedTitle: duplicate.item.title,
@@ -443,9 +443,7 @@ function mergeVaults(currentVault, incomingVault, importedPreferences) {
       ...incomingItem,
       values,
       id: crypto.randomUUID(),
-      categoryId,
-      createdAt: incomingItem.createdAt || now,
-      updatedAt: now
+      categoryId
     });
     report.itemsAdded += 1;
   }
@@ -507,11 +505,12 @@ function mergeFields(targetCategory, sourceCategory, items) {
   return fieldMap;
 }
 
-function normalizeSortMode(sortMode) {
+export function normalizeSortMode(sortMode) {
   const allowed = new Set([
     "updated-desc",
     "updated-asc",
     "created-desc",
+    "created-asc",
     "title-asc",
     "title-desc",
     "status-planned-first",

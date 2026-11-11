@@ -120,18 +120,26 @@ export function normalizeVault(input) {
   const categoryIds = new Set(categoryById.keys());
   vault.items = vault.items
     .filter((item) => item && item.title && categoryIds.has(item.categoryId))
-    .map((item) => ({
-      id: item.id || crypto.randomUUID(),
-      categoryId: item.categoryId,
-      title: String(item.title),
-      status: STATUSES[item.status] ? item.status : "planned",
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: item.updatedAt || new Date().toISOString(),
-      values: normalizeItemValues(item, categoryById.get(item.categoryId))
-    }));
+    .map((item) => {
+      const updatedAt = itemTimestamp(item.updatedAt);
+      const createdAt = item.createdAt === null ? null : itemTimestamp(item.createdAt) ?? updatedAt;
+      return {
+        id: item.id || crypto.randomUUID(),
+        categoryId: item.categoryId,
+        title: String(item.title),
+        status: STATUSES[item.status] ? item.status : "planned",
+        createdAt,
+        updatedAt: updatedAt ?? createdAt,
+        values: normalizeItemValues(item, categoryById.get(item.categoryId))
+      };
+    });
 
   vault.updatedAt = new Date().toISOString();
   return vault;
+}
+
+function itemTimestamp(value) {
+  return typeof value === "string" && Number.isFinite(Date.parse(value)) ? value : null;
 }
 
 function normalizeItemValues(item, category) {

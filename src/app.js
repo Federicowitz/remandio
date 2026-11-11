@@ -1,5 +1,5 @@
-import { createCatalog } from "./lib/catalog.js?v=25";
-import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=19";
+import { createCatalog, normalizeSortMode } from "./lib/catalog.js?v=26";
+import { averageRating, createCategory, createField, displayValue, makeUniqueId, serializeValue, textKey } from "./lib/schema.js?v=20";
 import { parseMovieListText } from "./lib/import-text.js?v=1";
 
 const refs = {
@@ -1199,19 +1199,7 @@ function countItems(categoryId) {
 }
 
 function activeCategorySort(categoryId) {
-  const sortMode = state.vault.preferences.categorySorts?.[categoryId];
-  const allowed = new Set([
-    "updated-desc",
-    "updated-asc",
-    "created-desc",
-    "title-asc",
-    "title-desc",
-    "status-planned-first",
-    "status-done-first",
-    "rating-desc",
-    "rating-asc"
-  ]);
-  return allowed.has(sortMode) ? sortMode : "updated-desc";
+  return normalizeSortMode(state.vault.preferences.categorySorts?.[categoryId]);
 }
 
 function nextSortMode(currentMode, group) {
@@ -1219,7 +1207,8 @@ function nextSortMode(currentMode, group) {
     title: ["title-asc", "title-desc"],
     status: ["status-planned-first", "status-done-first"],
     rating: ["rating-desc", "rating-asc"],
-    latest: ["updated-desc", "updated-asc"]
+    latest: ["updated-desc", "updated-asc"],
+    created: ["created-desc", "created-asc"]
   }[group];
   if (!cycle) return currentMode;
   return currentMode === cycle[0] ? cycle[1] : cycle[0];
@@ -1231,7 +1220,9 @@ function renderSortToolbar(sortMode) {
     const active = sortGroup(sortMode) === group;
     button.classList.toggle("active", active);
     button.querySelector(".sort-arrow").textContent = active ? sortArrow(sortMode) : "-";
+    button.setAttribute("aria-pressed", String(active));
     button.title = sortTitle(group, active ? sortMode : null);
+    button.setAttribute("aria-label", button.title);
   }
 }
 
@@ -1239,6 +1230,7 @@ function sortGroup(sortMode) {
   if (sortMode.startsWith("title-")) return "title";
   if (sortMode.startsWith("status-")) return "status";
   if (sortMode.startsWith("rating-")) return "rating";
+  if (sortMode.startsWith("created-")) return "created";
   return "latest";
 }
 
@@ -1251,12 +1243,14 @@ function sortTitle(group, sortMode) {
   if (sortMode === "title-desc") return "Alfabetico: Z-A";
   if (sortMode === "status-done-first") return "Completati prima";
   if (sortMode === "rating-asc") return "Voto basso prima";
-  if (sortMode === "updated-asc") return "Meno recenti prima";
+  if (sortMode === "updated-asc") return "Ultima modifica, dalla meno recente";
+  if (sortMode === "created-asc") return "Creazione, dalla meno recente";
   const labels = {
     title: "Alfabetico: A-Z",
     status: "Non completati prima",
     rating: "Voto alto prima",
-    latest: "Piu recenti prima"
+    latest: "Ultima modifica, dalla più recente",
+    created: "Creazione, dalla più recente"
   };
   return labels[group] || "Ordina";
 }
@@ -1267,7 +1261,13 @@ function compareItems(left, right, category, sortMode) {
 
   if (sortMode === "title-asc") return byTitle() || byUpdatedDesc();
   if (sortMode === "title-desc") return -byTitle() || byUpdatedDesc();
-  if (sortMode === "created-desc") return compareDateDesc(left.createdAt, right.createdAt) || byTitle();
+  if (sortMode === "created-desc" || sortMode === "created-asc") {
+    if (!left.createdAt || !right.createdAt) {
+      return Number(Boolean(right.createdAt)) - Number(Boolean(left.createdAt)) || byTitle();
+    }
+    const direction = sortMode === "created-asc" ? -1 : 1;
+    return direction * compareDateDesc(left.createdAt, right.createdAt) || byTitle();
+  }
   if (sortMode === "updated-asc") return -compareDateDesc(left.updatedAt, right.updatedAt) || byTitle();
   if (sortMode === "status-planned-first") return compareStatus(left, right, false) || byUpdatedDesc();
   if (sortMode === "status-done-first") return compareStatus(left, right, true) || byUpdatedDesc();
@@ -1277,9 +1277,9 @@ function compareItems(left, right, category, sortMode) {
 }
 
 function compareDateDesc(leftDate, rightDate) {
-  const leftTime = Date.parse(leftDate || "") || 0;
-  const rightTime = Date.parse(rightDate || "") || 0;
-  return rightTime - leftTime;
+  const leftTime = leftDate ? Date.parse(leftDate) : -Infinity;
+  const rightTime = rightDate ? Date.parse(rightDate) : -Infinity;
+  return leftTime === rightTime ? 0 : rightTime - leftTime;
 }
 
 function compareStatus(left, right, doneFirst) {
@@ -1542,7 +1542,7 @@ function applyTheme() {
   try { localStorage.setItem("remandio-theme", theme); } catch {}
   const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-    meta.content = dark ? "#080706" : "#eeede9";
+    meta.content = dark ? "#141210" : "#f1e8d8";
   });
 }
 
